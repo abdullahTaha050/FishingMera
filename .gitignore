@@ -9,4 +9,4 @@ android/
 ios/
 *.log
 .DS_Store
-
+supabase/.temp/
