@@ -1,0 +1,14 @@
+appId: app.mera.mobile
+---
+- launchApp
+- setAirplaneMode: enabled
+- tapOn: "Avlarım"
+- tapOn: "Avı Kaydet"
+- tapOn: "Orta"
+- tapOn: "Çevrimdışı kaydet"
+- assertVisible: "Cihazda bekliyor"
+- stopApp
+- launchApp
+- tapOn: "Avlarım"
+- assertVisible: "Cihazda bekliyor"
+- setAirplaneMode: disabled

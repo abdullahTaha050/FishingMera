@@ -74,6 +74,7 @@ export interface Spot {
   publicationLevel: PublicationLevel;
   ownerId?: UUID;
   sources: SourceEvidence[];
+  photoPaths?: string[];
   createdAt: string;
   updatedAt: string;
 }

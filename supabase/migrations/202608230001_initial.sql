@@ -65,6 +65,7 @@ create table public.spots (
   prohibited_status public.prohibited_status not null default 'UNKNOWN',
   techniques text[] not null default '{}',
   recommended_gear_tags text[] not null default '{}',
+  photo_paths text[] not null default '{}',
   source_type text not null,
   verification_status public.verification_status not null,
   confidence_score numeric(4,3) not null check (confidence_score between 0 and 1),
@@ -157,6 +158,7 @@ create table public.catch_reports (
   approximate_length_cm numeric(6,2),
   gear_profile_id uuid references public.gear_profiles(id) on delete set null,
   bait_or_lure text,
+  lure_weight_g numeric(7,2),
   weight_g numeric(7,2),
   result text not null check (result in ('NONE', 'LOW', 'MEDIUM', 'GOOD')),
   photo_paths text[] not null default '{}',
@@ -359,12 +361,17 @@ create policy gear_owner_all on public.gear_profiles for all to authenticated us
 create policy species_public_read on public.species for select to anon, authenticated using (true);
 create policy spots_public_read on public.spots for select to anon, authenticated using (publication_level in ('PUBLIC', 'APPROXIMATE') and coordinate_precision <> 'UNKNOWN');
 create policy spots_owner_all on public.spots for all to authenticated using (owner_id = auth.uid()) with check (owner_id = auth.uid());
+create policy spots_publication_requires_permanent_insert on public.spots as restrictive for insert to authenticated with check (publication_level = 'PRIVATE' or coalesce((select (auth.jwt()->>'is_anonymous')::boolean), true) is false);
+create policy spots_publication_requires_permanent_update on public.spots as restrictive for update to authenticated using (true) with check (publication_level = 'PRIVATE' or coalesce((select (auth.jwt()->>'is_anonymous')::boolean), true) is false);
 create policy private_location_owner_all on public.private_spot_locations for all to authenticated using (owner_id = auth.uid()) with check (owner_id = auth.uid());
 create policy spot_species_public_read on public.spot_species for select to anon, authenticated using (exists (select 1 from public.spots s where s.id = spot_id and s.publication_level in ('PUBLIC', 'APPROXIMATE')));
 create policy spot_sources_public_read on public.spot_sources for select to anon, authenticated using (exists (select 1 from public.spots s where s.id = spot_id and s.publication_level in ('PUBLIC', 'APPROXIMATE')));
 create policy conditions_public_read on public.condition_snapshots for select to anon, authenticated using (true);
 create policy favorites_owner_all on public.favorites for all to authenticated using (owner_id = auth.uid()) with check (owner_id = auth.uid());
 create policy reports_owner_all on public.catch_reports for all to authenticated using (owner_id = auth.uid()) with check (owner_id = auth.uid());
+create policy reports_public_read on public.catch_reports for select to anon, authenticated using (share_publicly = true);
+create policy reports_publication_requires_permanent_insert on public.catch_reports as restrictive for insert to authenticated with check (share_publicly = false or coalesce((select (auth.jwt()->>'is_anonymous')::boolean), true) is false);
+create policy reports_publication_requires_permanent_update on public.catch_reports as restrictive for update to authenticated using (true) with check (share_publicly = false or coalesce((select (auth.jwt()->>'is_anonymous')::boolean), true) is false);
 create policy feedback_owner_select on public.spot_feedback for select to authenticated using (owner_id = auth.uid());
 create policy feedback_owner_insert on public.spot_feedback for insert to authenticated with check (owner_id = auth.uid());
 create policy sync_owner_select on public.sync_operations for select to authenticated using (owner_id = auth.uid());
@@ -376,6 +383,13 @@ insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_typ
 values ('catch-photos', 'catch-photos', false, 10485760, array['image/jpeg', 'image/png', 'image/heic', 'image/webp'])
 on conflict (id) do nothing;
 
+insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+values ('spot-photos', 'spot-photos', false, 10485760, array['image/jpeg'])
+on conflict (id) do nothing;
+
 create policy catch_photos_owner_select on storage.objects for select to authenticated using (bucket_id = 'catch-photos' and (storage.foldername(name))[1] = auth.uid()::text);
 create policy catch_photos_owner_insert on storage.objects for insert to authenticated with check (bucket_id = 'catch-photos' and (storage.foldername(name))[1] = auth.uid()::text);
 create policy catch_photos_owner_delete on storage.objects for delete to authenticated using (bucket_id = 'catch-photos' and (storage.foldername(name))[1] = auth.uid()::text);
+create policy spot_photos_owner_select on storage.objects for select to authenticated using (bucket_id = 'spot-photos' and (storage.foldername(name))[1] = auth.uid()::text);
+create policy spot_photos_owner_insert on storage.objects for insert to authenticated with check (bucket_id = 'spot-photos' and (storage.foldername(name))[1] = auth.uid()::text);
+create policy spot_photos_owner_delete on storage.objects for delete to authenticated using (bucket_id = 'spot-photos' and (storage.foldername(name))[1] = auth.uid()::text);

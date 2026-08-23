@@ -34,8 +34,7 @@ const styles = StyleSheet.create({
   card: { backgroundColor: colors.surface, borderRadius: 18, borderWidth: 1, borderColor: colors.border, padding: spacing.md, gap: spacing.sm },
   title: { color: colors.ink, fontSize: 28, lineHeight: 34, fontWeight: "900" },
   label: { color: colors.muted, fontSize: 13, fontWeight: "700", textTransform: "uppercase", letterSpacing: 0.7 },
-  banner: { backgroundColor: "#E2E7DF", paddingHorizontal: spacing.md, paddingVertical: 8 },
+  banner: { backgroundColor: colors.banner, paddingHorizontal: spacing.md, paddingVertical: 8 },
   offlineBanner: { backgroundColor: colors.offline },
   bannerText: { color: colors.ink, textAlign: "center", fontWeight: "700", fontSize: 13 },
 });
-

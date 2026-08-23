@@ -25,6 +25,7 @@ const config: ExpoConfig = {
     "expo-router",
     "@maplibre/maplibre-react-native",
     ["expo-sqlite", { enableFTS: true }],
+    ["expo-image-picker", { photosPermission: "Av veya mera fotoğrafını cihazda saklamak için fotoğraflarına erişim izni gerekir.", cameraPermission: "Av veya mera fotoğrafı çekmek için kamera izni gerekir." }],
     ["expo-location", { locationWhenInUsePermission: "Yakındaki meraları ve çevrimdışı yönü göstermek için konumuna izin ver." }]
   ],
   experiments: { typedRoutes: true },

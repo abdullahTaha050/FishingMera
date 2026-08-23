@@ -1,6 +1,13 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { createClient } from "@supabase/supabase-js";
 
+export interface AccountStatus {
+  configured: boolean;
+  signedIn: boolean;
+  isAnonymous: boolean;
+  email: string | null;
+}
+
 let singleton: ReturnType<typeof createClient> | null = null;
 
 function client() {
@@ -22,3 +29,58 @@ export async function guestAccessToken(): Promise<string | null> {
   return signedIn.data.session?.access_token ?? null;
 }
 
+export async function accountStatus(): Promise<AccountStatus> {
+  const supabase = client();
+  if (!supabase) return { configured: false, signedIn: false, isAnonymous: true, email: null };
+  const result = await supabase.auth.getSession();
+  const user = result.data.session?.user;
+  return {
+    configured: true,
+    signedIn: Boolean(user),
+    isAnonymous: user?.is_anonymous ?? true,
+    email: user?.email ?? null
+  };
+}
+
+export async function requestGuestEmailOtp(email: string): Promise<void> {
+  const supabase = client();
+  if (!supabase) throw new Error("BACKEND_NOT_CONFIGURED");
+  const token = await guestAccessToken();
+  if (!token) throw new Error("ANONYMOUS_SIGN_IN_FAILED");
+  const result = await supabase.auth.updateUser({ email: email.trim().toLowerCase() });
+  if (result.error) throw result.error;
+}
+
+export async function verifyGuestEmailOtp(email: string, token: string): Promise<AccountStatus> {
+  const supabase = client();
+  if (!supabase) throw new Error("BACKEND_NOT_CONFIGURED");
+  const result = await supabase.auth.verifyOtp({
+    email: email.trim().toLowerCase(),
+    token: token.trim(),
+    type: "email_change"
+  });
+  if (result.error) throw result.error;
+  return accountStatus();
+}
+
+export async function requestExistingAccountOtp(email: string): Promise<void> {
+  const supabase = client();
+  if (!supabase) throw new Error("BACKEND_NOT_CONFIGURED");
+  const result = await supabase.auth.signInWithOtp({
+    email: email.trim().toLowerCase(),
+    options: { shouldCreateUser: false }
+  });
+  if (result.error) throw result.error;
+}
+
+export async function verifyExistingAccountOtp(email: string, token: string): Promise<AccountStatus> {
+  const supabase = client();
+  if (!supabase) throw new Error("BACKEND_NOT_CONFIGURED");
+  const result = await supabase.auth.verifyOtp({
+    email: email.trim().toLowerCase(),
+    token: token.trim(),
+    type: "email"
+  });
+  if (result.error) throw result.error;
+  return accountStatus();
+}

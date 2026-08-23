@@ -2,7 +2,7 @@
 
 ## Bootstrap
 
-The app bundle contains versioned Sakarya/Kocaeli seed spots, species, gear rules, regulations metadata, recommendation weights and a small coast/reference overlay. On first open, these are inserted into SQLite in one transaction before navigation becomes available.
+The app bundle contains versioned Sakarya/Kocaeli seed spots, species, gear rules, regulations metadata, recommendation weights and a 3.0 MiB GeoJSON basemap extract. The extract currently contains 13,504 OpenStreetMap features: roads, coastline and settlement labels across `[29.95, 40.95, 31.65, 41.35]`. On first open, structured data is inserted into SQLite in one transaction before navigation becomes available; the map asset is read directly from the signed app bundle.
 
 ## Reads
 
@@ -20,7 +20,9 @@ The sync worker runs at launch, foreground, network reconnection and manual retr
 
 ## Offline regions
 
-MapLibre owns native tile resources. SQLite stores region id, style/package version, bounds, zoom range, byte estimate, checksum, download state and timestamps. A completed pack is usable after app restart. Partial/corrupt downloads remain visibly retryable and never replace a previous complete version.
+The baseline region needs no download: MapLibre renders the embedded ODbL-1.0 extract with visible OpenStreetMap attribution. `npm run basemap:verify` checks its feature coverage, licence metadata and SHA-256 (`729171b…d4a590`). `npm run basemap:build` can regenerate it from one Overpass data query; the app never bulk-downloads public OSM raster tiles.
+
+If `EXPO_PUBLIC_MAP_STYLE_URL` points to a Mera-controlled style whose source licences permit offline caching, MapLibre additionally owns native tile resources. SQLite stores region id, style/package version, bounds, checksum, download state and timestamps. A completed pack is usable after app restart. Partial/corrupt downloads remain visibly retryable and never replace a previous complete version.
 
 ## Compass
 
@@ -33,4 +35,3 @@ GPS and magnetometer readings are device-only. Bearing and Haversine distance us
 - under 24 hours: `N saat önce güncellendi`
 - 24 hours or more: `N gün önce güncellendi — eski veri`
 - no snapshot: `Güncel koşul verisi yok`
-

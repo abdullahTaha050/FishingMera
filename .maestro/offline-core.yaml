@@ -1,0 +1,18 @@
+appId: app.mera.mobile
+---
+- setAirplaneMode: enabled
+- launchApp:
+    clearState: true
+- assertVisible: "Önce seni ve takımını tanıyalım"
+- tapOn: "Başla"
+- assertVisible: "BUGÜN NEREYE GİTSEM?"
+- tapOn: "BUGÜN NEREYE GİTSEM?"
+- assertVisible: "Konum kaynağı"
+- assertVisible: "Hendek demo konumu"
+- back
+- tapOn: "Harita"
+- assertVisible: "© OpenStreetMap katkıcıları"
+- stopApp
+- launchApp
+- assertVisible: "BUGÜN NEREYE GİTSEM?"
+- setAirplaneMode: disabled

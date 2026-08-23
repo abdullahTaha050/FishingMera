@@ -11,15 +11,17 @@ export function useCurrentLocation() {
   const [permission, setPermission] = useState<Location.PermissionStatus | null>(null);
   const [loading, setLoading] = useState(false);
 
-  const request = useCallback(async () => {
+  const request = useCallback(async (): Promise<Coordinates | null> => {
     setLoading(true);
     try {
       const result = await Location.requestForegroundPermissionsAsync();
       setPermission(result.status);
-      if (result.status !== Location.PermissionStatus.GRANTED) return;
+      if (result.status !== Location.PermissionStatus.GRANTED) return null;
       const position = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
-      setCoordinates({ latitude: position.coords.latitude, longitude: position.coords.longitude });
+      const next = { latitude: position.coords.latitude, longitude: position.coords.longitude };
+      setCoordinates(next);
       setAccuracy(position.coords.accuracy ?? null);
+      return next;
     } finally { setLoading(false); }
   }, []);
   return { coordinates, accuracy, permission, loading, request };

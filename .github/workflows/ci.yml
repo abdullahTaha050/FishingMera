@@ -22,10 +22,12 @@ jobs:
       - run: npm run typecheck
       - run: npm test
       - run: npm run db:parse
+      - run: npm run basemap:verify
       - run: npx expo-doctor
         working-directory: apps/mobile
       - run: npm run mobile:export
       - run: npm run deno:check
+      - run: npm run deno:test
 
   database:
     runs-on: ubuntu-latest

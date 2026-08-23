@@ -1,5 +1,6 @@
 import { createClient } from "@supabase/supabase-js";
 import { z } from "zod";
+import { feedbackConfidenceScore, type FeedbackType } from "./logic.ts";
 
 const jsonHeaders = { "content-type": "application/json; charset=utf-8" };
 const corsHeaders = {
@@ -13,6 +14,15 @@ const response = (body: unknown, status = 200) =>
     status,
     headers: { ...jsonHeaders, ...corsHeaders },
   });
+
+function structuredLog(
+  event: string,
+  properties: Record<string, string | number | boolean | null>,
+) {
+  console.log(
+    JSON.stringify({ event, at: new Date().toISOString(), ...properties }),
+  );
+}
 
 const candidateSchema = z.object({
   candidates: z.array(z.object({
@@ -74,16 +84,24 @@ function currentIndex(times: string[]): number {
 async function conditions(url: URL) {
   const lat = readNumber(url, "lat", -90, 90);
   const lon = readNumber(url, "lon", -180, 180);
+  const spotIdValue = url.searchParams.get("spotId");
+  const spotId = spotIdValue ? z.string().uuid().parse(spotIdValue) : null;
   const roundedLat = roundedCoordinate(lat);
   const roundedLon = roundedCoordinate(lon);
   const hour = new Date().toISOString().slice(0, 13);
-  const cacheKey = `${roundedLat}:${roundedLon}:${hour}`;
+  const cacheKey = `${
+    spotId ?? "coordinate"
+  }:${roundedLat}:${roundedLon}:${hour}`;
   const db = serviceClient();
   const cached = await db.from("condition_snapshots").select("*").eq(
     "cache_key",
     cacheKey,
   ).gt("expires_at", new Date().toISOString()).maybeSingle();
-  if (cached.data) return response({ source: "cache", snapshot: cached.data });
+  if (cached.data) {
+    structuredLog("conditions_cache", { outcome: "hit" });
+    return response({ source: "cache", snapshot: cached.data });
+  }
+  structuredLog("conditions_cache", { outcome: "miss" });
 
   const weatherBase = Deno.env.get("OPEN_METEO_BASE_URL") ??
     "https://api.open-meteo.com";
@@ -106,14 +124,31 @@ async function conditions(url: URL) {
   if (
     weatherResult.status === "rejected" && marineResult.status === "rejected"
   ) {
-    const stalePrefix = `${roundedLat}:${roundedLon}:`;
+    const stalePrefix = `${
+      spotId ?? "coordinate"
+    }:${roundedLat}:${roundedLon}:`;
     const stale = await db.from("condition_snapshots").select("*").like(
       "cache_key",
       `${stalePrefix}%`,
     ).order("fetched_at", { ascending: false }).limit(1).maybeSingle();
-    return stale.data
-      ? response({ source: "stale_cache", stale: true, snapshot: stale.data })
-      : response({ code: "CONDITIONS_UNAVAILABLE", retryable: true }, 503);
+    if (stale.data) {
+      structuredLog("conditions_external", {
+        outcome: "stale_fallback",
+        weather: "failed",
+        marine: "failed",
+      });
+      return response({
+        source: "stale_cache",
+        stale: true,
+        snapshot: stale.data,
+      });
+    }
+    structuredLog("conditions_external", {
+      outcome: "unavailable",
+      weather: "failed",
+      marine: "failed",
+    });
+    return response({ code: "CONDITIONS_UNAVAILABLE", retryable: true }, 503);
   }
 
   const weather = weatherResult.status === "fulfilled"
@@ -129,6 +164,7 @@ async function conditions(url: URL) {
   const now = new Date();
   const row = {
     cache_key: cacheKey,
+    spot_id: spotId,
     rounded_location: `POINT(${roundedLon} ${roundedLat})`,
     air_temperature_c: weather?.hourly?.temperature_2m?.[weatherAt] ?? null,
     precipitation_mm: weather?.hourly?.precipitation?.[weatherAt] ?? null,
@@ -162,8 +198,14 @@ async function conditions(url: URL) {
     onConflict: "cache_key",
   }).select("*").single();
   if (saved.error) {
+    structuredLog("conditions_cache", { outcome: "write_failed" });
     return response({ code: "CACHE_WRITE_FAILED", retryable: true }, 503);
   }
+  structuredLog("conditions_external", {
+    outcome: "live",
+    weather: Boolean(weather),
+    marine: Boolean(marine),
+  });
   return response({
     source: "live",
     partial: !weather || !marine,
@@ -186,19 +228,23 @@ async function nearby(url: URL) {
     : response({ spots: result.data, distanceType: "STRAIGHT_LINE" });
 }
 
-async function authenticatedUser(request: Request): Promise<string | null> {
+async function authenticatedUser(
+  request: Request,
+): Promise<{ id: string; isAnonymous: boolean } | null> {
   const token = request.headers.get("authorization")?.replace(
     /^Bearer\s+/i,
     "",
   );
   if (!token) return null;
   const auth = await serviceClient().auth.getUser(token);
-  return auth.data.user?.id ?? null;
+  const user = auth.data.user;
+  return user ? { id: user.id, isAnonymous: user.is_anonymous ?? true } : null;
 }
 
 async function discover(request: Request) {
-  const userId = await authenticatedUser(request);
-  if (!userId) return response({ code: "AUTH_REQUIRED" }, 401);
+  const identity = await authenticatedUser(request);
+  if (!identity) return response({ code: "AUTH_REQUIRED" }, 401);
+  const userId = identity.id;
   const key = Deno.env.get("OPENAI_API_KEY");
   if (!key) {
     return response({
@@ -471,6 +517,13 @@ async function discover(request: Request) {
       output_tokens: outputTokens,
       estimated_cost_usd: estimatedCost,
     }).eq("id", run.data.id);
+    structuredLog("discovery_completed", {
+      source: "live",
+      candidates: accepted.length,
+      rejected: parsed.candidates.length - accepted.length,
+      searchCalls,
+      estimatedCostUsd: Number(estimatedCost.toFixed(6)),
+    });
     return response({
       source: "live",
       runId: run.data.id,
@@ -483,6 +536,9 @@ async function discover(request: Request) {
       completed_at: new Date().toISOString(),
       error_code: error instanceof Error ? error.name : "UNKNOWN",
     }).eq("id", run.data.id);
+    structuredLog("discovery_failed", {
+      code: error instanceof Error ? error.name : "UNKNOWN",
+    });
     return response({
       code: "DISCOVERY_FAILED",
       retryable: true,
@@ -507,8 +563,9 @@ const syncItemSchema = z.object({
 });
 
 async function syncMutation(request: Request) {
-  const userId = await authenticatedUser(request);
-  if (!userId) return response({ code: "AUTH_REQUIRED" }, 401);
+  const identity = await authenticatedUser(request);
+  if (!identity) return response({ code: "AUTH_REQUIRED" }, 401);
+  const userId = identity.id;
   const item = syncItemSchema.parse(await request.json());
   const headerKey = request.headers.get("x-idempotency-key");
   if (headerKey !== item.idempotencyKey) {
@@ -527,6 +584,7 @@ async function syncMutation(request: Request) {
   }
 
   let mutationError: { message: string; code?: string } | null = null;
+  let mutationResult: Record<string, unknown> = {};
   if (item.entityType === "FAVORITE") {
     if (item.operation === "DELETE" || item.payload.favorite === false) {
       mutationError =
@@ -575,31 +633,58 @@ async function syncMutation(request: Request) {
       quantity: z.number().int().min(0).default(0),
       result: z.enum(["NONE", "LOW", "MEDIUM", "GOOD"]),
       gearProfileId: z.string().uuid().nullable().optional(),
+      endedAt: z.string().datetime().nullable().optional(),
+      approximateLengthCm: z.number().min(0).max(1000).optional(),
+      baitOrLure: z.string().max(300).optional(),
+      lureWeightG: z.number().min(0).max(5000).optional(),
+      photoPaths: z.array(z.string().max(500)).max(6).default([]),
+      sharePublicly: z.boolean().default(false),
       note: z.string().max(5000).optional(),
       spotId: z.string().uuid().nullable().optional(),
     }).parse(item.payload);
+    if (report.sharePublicly && identity.isAnonymous) {
+      return response({ code: "PERMANENT_ACCOUNT_REQUIRED" }, 403);
+    }
     let snapshotId: string | null = null;
     if (report.spotId) {
-      const snapshot = await db.from("condition_snapshots").select("id").eq(
-        "spot_id",
-        report.spotId,
-      ).lte("observed_at", report.startedAt).order("observed_at", {
-        ascending: false,
-      }).limit(1).maybeSingle();
-      snapshotId = snapshot.data?.id ?? null;
+      const previousSnapshot = await db.from("condition_snapshots").select("id")
+        .eq(
+          "spot_id",
+          report.spotId,
+        ).lte("observed_at", report.startedAt).order("observed_at", {
+          ascending: false,
+        }).limit(1).maybeSingle();
+      snapshotId = previousSnapshot.data?.id ?? null;
+      if (!snapshotId) {
+        const nextSnapshot = await db.from("condition_snapshots").select("id")
+          .eq("spot_id", report.spotId).gte("observed_at", report.startedAt)
+          .lte(
+            "observed_at",
+            new Date(new Date(report.startedAt).getTime() + 12 * 3_600_000)
+              .toISOString(),
+          )
+          .order("observed_at", { ascending: true }).limit(1).maybeSingle();
+        snapshotId = nextSnapshot.data?.id ?? null;
+      }
     }
     mutationError = (await db.from("catch_reports").upsert({
       id: report.id,
       owner_id: userId,
       spot_id: report.spotId ?? null,
       started_at: report.startedAt,
+      ended_at: report.endedAt ?? null,
       target_species_id: report.targetSpecies,
       caught_species: report.caughtSpecies,
       quantity: report.quantity,
+      approximate_length_cm: report.approximateLengthCm ?? null,
       result: report.result,
       gear_profile_id: report.gearProfileId ?? null,
+      bait_or_lure: report.baitOrLure ?? null,
+      lure_weight_g: report.lureWeightG ?? null,
+      photo_paths: report.photoPaths,
       note: report.note ?? null,
       condition_snapshot_id: snapshotId,
+      share_publicly: report.sharePublicly,
       updated_at: new Date().toISOString(),
     })).error;
   } else if (item.entityType === "USER_SPOT") {
@@ -621,9 +706,21 @@ async function syncMutation(request: Request) {
         terrain: z.string().max(1000),
         knownHazards: z.array(z.string().max(300)).max(20),
         accessWarnings: z.array(z.string().max(300)).max(20),
+        parkingNotes: z.string().max(500).optional(),
+        walkingDistanceM: z.number().min(0).max(100000).optional(),
+        beginnerSuitability: z.enum([
+          "SUITABLE",
+          "CAUTION",
+          "UNSUITABLE",
+          "UNKNOWN",
+        ]),
+        photoPaths: z.array(z.string().max(500)).max(6).default([]),
       }).parse(item.payload.spot);
       const isPrivate = userSpot.publicationLevel === "PRIVATE";
       const isApproximate = userSpot.publicationLevel === "APPROXIMATE";
+      if (!isPrivate && identity.isAnonymous) {
+        return response({ code: "PERMANENT_ACCOUNT_REQUIRED" }, 403);
+      }
       const displayLatitude = isApproximate
         ? Math.round(userSpot.coordinates.latitude * 100) / 100
         : userSpot.coordinates.latitude;
@@ -649,13 +746,16 @@ async function syncMutation(request: Request) {
         country: "TR",
         coastline_type: userSpot.coastlineType,
         access_type: userSpot.accessType,
-        beginner_suitability: "UNKNOWN",
+        beginner_suitability: userSpot.beginnerSuitability,
         terrain: userSpot.terrain,
+        parking_notes: userSpot.parkingNotes ?? null,
+        walking_distance_m: userSpot.walkingDistanceM ?? null,
         known_hazards: userSpot.knownHazards,
         access_warnings: userSpot.accessWarnings,
         prohibited_status: "UNKNOWN",
         techniques: [],
         recommended_gear_tags: [],
+        photo_paths: userSpot.photoPaths,
         source_type: "COMMUNITY",
         verification_status: "COMMUNITY",
         confidence_score: 0.35,
@@ -719,6 +819,18 @@ async function syncMutation(request: Request) {
         retryAfterSeconds: 3600,
       }, 429);
     } else {
+      const current = await db.from("spots").select(
+        "confidence_score,owner_id,publication_level",
+      ).eq("id", feedback.spotId).maybeSingle();
+      if (current.error) mutationError = current.error;
+      else if (
+        !current.data ||
+        (current.data.publication_level === "PRIVATE" &&
+          current.data.owner_id !== userId)
+      ) {
+        return response({ code: "SPOT_NOT_FOUND" }, 404);
+      }
+      if (mutationError) return response({ code: "SYNC_MUTATION_FAILED" }, 503);
       mutationError = (await db.from("spot_feedback").insert({
         id: feedback.id,
         owner_id: userId,
@@ -726,6 +838,17 @@ async function syncMutation(request: Request) {
         feedback_type: feedback.feedbackType,
         note: feedback.note ?? null,
       })).error;
+      if (!mutationError && current.data) {
+        const confidenceScore = feedbackConfidenceScore(
+          Number(current.data.confidence_score),
+          feedback.feedbackType as FeedbackType,
+        );
+        mutationError = (await db.from("spots").update({
+          confidence_score: confidenceScore,
+          updated_at: new Date().toISOString(),
+        }).eq("id", feedback.spotId)).error;
+        if (!mutationError) mutationResult = { confidenceScore };
+      }
     }
   } else {
     return response({ code: "SYNC_ENTITY_NOT_IMPLEMENTED" }, 422);
@@ -739,6 +862,7 @@ async function syncMutation(request: Request) {
   const resultPayload = {
     entityId: item.entityId,
     appliedAt: new Date().toISOString(),
+    ...mutationResult,
   };
   const ledger = await db.from("sync_operations").insert({
     owner_id: userId,
@@ -759,35 +883,57 @@ async function syncMutation(request: Request) {
 }
 
 Deno.serve(async (request) => {
+  const requestId = crypto.randomUUID();
+  const startedAt = performance.now();
   if (request.method === "OPTIONS") {
     return new Response(null, { status: 204, headers: corsHeaders });
   }
+  let path = "/";
   try {
     const url = new URL(request.url);
-    const path = url.pathname.replace(/^.*\/api/, "") || "/";
+    path = url.pathname.replace(/^.*\/api/, "") || "/";
+    let result: Response;
     if (request.method === "GET" && path === "/health") {
-      return response({ ok: true, service: "mera-api" });
+      result = response({ ok: true, service: "mera-api" });
+    } else if (request.method === "GET" && path === "/nearby") {
+      result = await nearby(url);
+    } else if (request.method === "GET" && path === "/conditions") {
+      result = await conditions(url);
+    } else if (request.method === "POST" && path === "/discover") {
+      result = await discover(request);
+    } else if (request.method === "POST" && path === "/sync") {
+      result = await syncMutation(request);
+    } else {
+      result = response({ code: "NOT_FOUND" }, 404);
     }
-    if (request.method === "GET" && path === "/nearby") return nearby(url);
-    if (request.method === "GET" && path === "/conditions") {
-      return conditions(url);
-    }
-    if (request.method === "POST" && path === "/discover") {
-      return discover(request);
-    }
-    if (request.method === "POST" && path === "/sync") {
-      return syncMutation(request);
-    }
-    return response({ code: "NOT_FOUND" }, 404);
+    result.headers.set("x-request-id", requestId);
+    structuredLog("api_request", {
+      requestId,
+      method: request.method,
+      path,
+      status: result.status,
+      latencyMs: Math.round(performance.now() - startedAt),
+    });
+    return result;
   } catch (error) {
     const code = error instanceof z.ZodError
       ? "VALIDATION_ERROR"
       : error instanceof Error
       ? error.message
       : "INTERNAL_ERROR";
-    return response(
+    const result = response(
       { code },
       code.startsWith("INVALID_") || code === "VALIDATION_ERROR" ? 400 : 500,
     );
+    result.headers.set("x-request-id", requestId);
+    structuredLog("api_request", {
+      requestId,
+      method: request.method,
+      path,
+      status: result.status,
+      latencyMs: Math.round(performance.now() - startedAt),
+      errorCode: code,
+    });
+    return result;
   }
 });

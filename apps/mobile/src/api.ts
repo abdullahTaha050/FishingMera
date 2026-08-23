@@ -47,7 +47,7 @@ export async function fetchConditions(spot: Spot): Promise<ConditionSnapshot | n
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 10_000);
   try {
-    const result = await fetch(`${base}/conditions?lat=${spot.coordinates.latitude}&lon=${spot.coordinates.longitude}`, {
+    const result = await fetch(`${base}/conditions?lat=${spot.coordinates.latitude}&lon=${spot.coordinates.longitude}&spotId=${encodeURIComponent(spot.id)}`, {
       headers: { apikey: process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ?? "" }, signal: controller.signal
     });
     if (!result.ok) return null;

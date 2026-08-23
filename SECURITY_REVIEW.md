@@ -13,6 +13,8 @@
 - Exact private and approximate community coordinates are stored in `private_spot_locations`; public radius queries exclude private/unknown locations and see only the rounded approximate point.
 - SQLite analytics uses an event allowlist and rejects latitude, longitude, coordinate or location property names.
 - Sync writes require a Supabase JWT, validate payloads with Zod and use an owner-scoped idempotency ledger. Feedback is limited to five submissions per account per hour.
+- Anonymous users can upgrade in place with email OTP. Public/approximate spots and public reports are rejected for anonymous identities by both the Edge API and restrictive RLS policies.
+- Camera/library images are re-encoded to bounded JPEGs without EXIF, persisted in an offline queue and uploaded only to private owner-path buckets.
 - AI discovery runs server-side, validates strict structured output, rejects coordinates without coordinate evidence, stores sources, and has daily/monthly circuit breakers.
 
 ## Residual release work
@@ -20,5 +22,5 @@
 - Run pgTAP against a real local/CI Supabase stack; Docker was installed locally but its daemon was unavailable during this review.
 - Perform OWASP MASVS-oriented checks on signed release binaries, including local database extraction, TLS interception, deep-link handling and screenshot/background privacy.
 - Configure an account deletion/export flow and final privacy notice before store submission.
-- Add production abuse controls at the gateway (per-IP/user limits) and verified-account requirements before public community publishing is opened broadly.
-- Review photo EXIF stripping and MIME sniffing when photo upload UI is enabled; the current MVP does not upload photos.
+- Add production abuse controls at the gateway (per-IP/user limits) before public community publishing is opened broadly.
+- Add server-side magic-byte MIME sniffing and orphan-object cleanup for queued photo uploads.

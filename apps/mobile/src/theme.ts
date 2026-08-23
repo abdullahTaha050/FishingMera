@@ -12,6 +12,8 @@ export const colors = {
   ink: adaptive("#18221D", "#F3F5F0", "?attr/textColorPrimary"),
   muted: adaptive("#657069", "#ABB5AE", "?attr/textColorSecondary"),
   border: adaptive("#D8D9CF", "#39453E", "?attr/colorControlNormal"),
+  soft: adaptive("#ECEBE3", "#28322C", "?attr/colorBackgroundFloating"),
+  banner: adaptive("#E2E7DF", "#2B3730", "?attr/colorBackgroundFloating"),
   primary: "#E36B38",
   primaryDark: "#A93E18",
   moss: "#375E4C",

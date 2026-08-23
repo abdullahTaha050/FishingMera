@@ -2,6 +2,7 @@ import { SEED_SPOTS, SEED_VERSION } from "@mera/seed-data";
 import { GENERAL_SEA_REGULATION_TR, REGULATION_VERSION, SPECIES_REGULATIONS } from "@mera/config";
 import type { ConditionSnapshot, GearProfile, PublicationLevel, SpeciesId, Spot, SyncQueueItem } from "@mera/types";
 import * as SQLite from "expo-sqlite";
+import type { LocalPhoto } from "./photos";
 
 export type Database = SQLite.SQLiteDatabase;
 
@@ -30,6 +31,7 @@ async function migrate(db: Database): Promise<void> {
     CREATE TABLE IF NOT EXISTS regulation_versions (id TEXT PRIMARY KEY, payload TEXT NOT NULL, checked_at TEXT NOT NULL, effective_to TEXT NOT NULL);
     CREATE INDEX IF NOT EXISTS sync_queue_due_idx ON sync_queue(state, next_attempt_at);
     INSERT OR IGNORE INTO schema_migrations(version, applied_at) VALUES (1, datetime('now'));
+    UPDATE sync_queue SET state='PENDING',next_attempt_at=datetime('now'),last_error='RECOVERED_AFTER_RESTART' WHERE state='PROCESSING';
   `);
 }
 
@@ -94,6 +96,17 @@ export async function getActiveGear(db: Database): Promise<GearProfile | null> {
   return row ? JSON.parse(row.payload) as GearProfile : null;
 }
 
+export async function listGearProfiles(db: Database): Promise<GearProfile[]> {
+  const rows = await db.getAllAsync<{ payload: string }>("SELECT payload FROM gear_profiles ORDER BY updated_at DESC");
+  return rows.map((row) => JSON.parse(row.payload) as GearProfile);
+}
+
+export async function setActiveGear(db: Database, gearId: string): Promise<void> {
+  const exists = await db.getFirstAsync<{ id: string }>("SELECT id FROM gear_profiles WHERE id=?", gearId);
+  if (!exists) throw new Error("GEAR_NOT_FOUND");
+  await setSetting(db, "active_gear_id", gearId);
+}
+
 export async function cacheCondition(db: Database, condition: ConditionSnapshot): Promise<void> {
   await db.runAsync("INSERT INTO cached_conditions(spot_id,payload,fetched_at,expires_at) VALUES(?,?,?,?) ON CONFLICT(spot_id) DO UPDATE SET payload=excluded.payload,fetched_at=excluded.fetched_at,expires_at=excluded.expires_at", condition.spotId, JSON.stringify(condition), condition.fetchedAt, condition.expiresAt);
 }
@@ -131,6 +144,11 @@ export interface UserSpotInput {
   targetSpecies: SpeciesId[];
   coastlineType: Spot["coastlineType"];
   accessType: Spot["accessType"];
+  beginnerSuitability: Spot["beginnerSuitability"];
+  parkingNotes?: string;
+  walkingDistanceM?: number;
+  knownHazards: string[];
+  photos: LocalPhoto[];
   note?: string;
 }
 
@@ -148,9 +166,11 @@ export async function saveUserSpot(db: Database, input: UserSpotInput): Promise<
     country: "TR",
     coastlineType: input.coastlineType,
     accessType: input.accessType,
-    beginnerSuitability: "UNKNOWN",
+    beginnerSuitability: input.beginnerSuitability,
     terrain: input.note?.trim() || "Kullanıcı kaydı — arazi bilgisi doğrulanmadı",
-    knownHazards: [],
+    parkingNotes: input.parkingNotes?.trim() || undefined,
+    walkingDistanceM: input.walkingDistanceM,
+    knownHazards: input.knownHazards,
     accessWarnings: ["Topluluk kaydı; erişim, güvenlik ve yasak durumu ayrıca doğrulanmalı."],
     prohibitedStatus: "UNKNOWN",
     targetSpecies: input.targetSpecies,
@@ -162,13 +182,14 @@ export async function saveUserSpot(db: Database, input: UserSpotInput): Promise<
     publicationLevel: input.publicationLevel,
     ownerId: "local-device-owner",
     sources: [],
+    photoPaths: input.photos.map((photo) => photo.uri),
     createdAt: now,
     updatedAt: now
   };
   await db.withTransactionAsync(async () => {
     await db.runAsync("INSERT INTO user_spots(id,payload,sync_status,created_at,updated_at) VALUES(?,?,'PENDING',?,?)", id, JSON.stringify(spot), now, now);
     await db.runAsync("INSERT INTO spots(id,payload,server_updated_at,downloaded_at) VALUES(?,?,NULL,?) ON CONFLICT(id) DO UPDATE SET payload=excluded.payload,downloaded_at=excluded.downloaded_at", id, JSON.stringify(spot), now);
-    await enqueue(db, "USER_SPOT", id, "UPSERT", { spot });
+    await enqueue(db, "USER_SPOT", id, "UPSERT", { spot, photos: input.photos });
     await trackEvent(db, "user_spot_created", { publicationLevel: input.publicationLevel });
   });
   return id;
@@ -185,6 +206,10 @@ export async function listCatchReports(db: Database): Promise<{ id: string; payl
   return rows.map((row) => ({ id: row.id, payload: JSON.parse(row.payload), syncStatus: row.sync_status, createdAt: row.created_at }));
 }
 
+export async function listCatchReportsForSpot(db: Database, spotId: string, limit = 3): Promise<{ id: string; payload: Record<string, unknown>; syncStatus: string; createdAt: string }[]> {
+  return (await listCatchReports(db)).filter((report) => report.payload.spotId === spotId).slice(0, limit);
+}
+
 async function enqueue(db: Database, entityType: SyncQueueItem["entityType"], entityId: string, operation: SyncQueueItem["operation"], payload: Record<string, unknown>): Promise<void> {
   const id = globalThis.crypto.randomUUID();
   const now = new Date().toISOString();
@@ -195,6 +220,13 @@ async function enqueue(db: Database, entityType: SyncQueueItem["entityType"], en
 export async function dueSyncItems(db: Database, limit = 20): Promise<SyncQueueItem[]> {
   const rows = await db.getAllAsync<Record<string, string | number>>("SELECT * FROM sync_queue WHERE state='PENDING' AND next_attempt_at <= ? ORDER BY created_at LIMIT ?", new Date().toISOString(), limit);
   return rows.map((row) => ({ id: String(row.id), entityId: String(row.entity_id), entityType: String(row.entity_type) as SyncQueueItem["entityType"], operation: String(row.operation) as SyncQueueItem["operation"], payload: JSON.parse(String(row.payload)), idempotencyKey: String(row.idempotency_key), state: String(row.state) as SyncQueueItem["state"], attempts: Number(row.attempts), nextAttemptAt: String(row.next_attempt_at), createdAt: String(row.created_at) }));
+}
+
+export async function retryBlockedAccountItems(db: Database): Promise<void> {
+  await db.runAsync(
+    "UPDATE sync_queue SET state='PENDING',attempts=0,next_attempt_at=?,last_error=NULL WHERE state='BLOCKED' AND last_error='PERMANENT_ACCOUNT_REQUIRED'",
+    new Date().toISOString()
+  );
 }
 
 export async function getSetting(db: Database, key: string): Promise<string | null> {

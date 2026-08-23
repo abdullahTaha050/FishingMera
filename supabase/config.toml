@@ -22,6 +22,7 @@ site_url = "mera://auth/callback"
 additional_redirect_urls = ["mera://auth/callback"]
 enable_signup = true
 enable_anonymous_sign_ins = true
+enable_manual_linking = true
 
 [storage]
 enabled = true
@@ -29,4 +30,3 @@ file_size_limit = "10MiB"
 
 [functions.api]
 verify_jwt = false
-

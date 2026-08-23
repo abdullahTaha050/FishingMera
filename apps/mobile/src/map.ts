@@ -1,9 +1,15 @@
 import { OfflineManager } from "@maplibre/maplibre-react-native";
 import type { Spot } from "@mera/types";
+import type { FeatureCollection } from "geojson";
+import bundledBasemapJson from "../assets/sakarya-kocaeli-basemap.json";
 import { trackEvent, type Database } from "./db";
 
 export const SAKARYA_NORTH_BOUNDS: [number, number, number, number] = [30.55, 41.02, 31.08, 41.17];
 export const KOCAELI_NORTH_BOUNDS: [number, number, number, number] = [29.90, 41.05, 30.40, 41.24];
+export const BUNDLED_NORTH_COAST_BOUNDS: [number, number, number, number] = [29.95, 40.95, 31.65, 41.35];
+export const BUNDLED_BASEMAP = bundledBasemapJson as unknown as FeatureCollection;
+export const BUNDLED_BASEMAP_VERSION = "osm-north-coast-20260823-v1";
+export const BUNDLED_BASEMAP_SHA256 = "729171b256531279313224f10e3f2fe79764a08751c4882b9fa21033c5d4a590";
 
 export const fallbackMapStyle = {
   version: 8 as const,
@@ -30,10 +36,18 @@ export async function downloadOfflineRegion(
   onProgress: (percentage: number) => void
 ): Promise<string> {
   const mapStyle = process.env.EXPO_PUBLIC_MAP_STYLE_URL;
-  if (!mapStyle) throw new Error("OFFLINE_STYLE_NOT_CONFIGURED");
-  OfflineManager.setTileCountLimit(80_000);
   await trackEvent(db, "offline_region_downloaded", { regionId: region.id });
   const now = new Date().toISOString();
+  if (!mapStyle) {
+    const packId = `bundled:${BUNDLED_BASEMAP_VERSION}`;
+    await db.runAsync(
+      "INSERT INTO offline_regions(id,name,pack_id,state,progress,style_url,bounds_json,package_version,checksum,updated_at) VALUES(?,?,?,'COMPLETE',100,'bundled://osm-north-coast',?,?,?,?) ON CONFLICT(id) DO UPDATE SET pack_id=excluded.pack_id,state='COMPLETE',progress=100,style_url=excluded.style_url,bounds_json=excluded.bounds_json,package_version=excluded.package_version,checksum=excluded.checksum,updated_at=excluded.updated_at",
+      region.id, region.name, packId, JSON.stringify(BUNDLED_NORTH_COAST_BOUNDS), BUNDLED_BASEMAP_VERSION, BUNDLED_BASEMAP_SHA256, now
+    );
+    onProgress(100);
+    return packId;
+  }
+  OfflineManager.setTileCountLimit(80_000);
   await db.runAsync("INSERT INTO offline_regions(id,name,state,progress,style_url,bounds_json,updated_at) VALUES(?,?,'DOWNLOADING',0,?,?,?) ON CONFLICT(id) DO UPDATE SET state='DOWNLOADING',progress=0,style_url=excluded.style_url,bounds_json=excluded.bounds_json,updated_at=excluded.updated_at", region.id, region.name, mapStyle, JSON.stringify(region.bounds), now);
   const pack = await OfflineManager.createPack(
     { mapStyle, bounds: region.bounds, minZoom: 6, maxZoom: 14, metadata: { regionId: region.id, name: region.name, sourcePolicy: "offline-permitted-self-hosted" } },
