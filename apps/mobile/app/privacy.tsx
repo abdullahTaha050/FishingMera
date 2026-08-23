@@ -4,7 +4,7 @@ import { colors, spacing } from "@/theme";
 
 const sections = [
   ["Cihazda kalanlar", "Tercihler, takımlar, favoriler, araç konumu, çevrimdışı meralar, taslak raporlar ve fotoğraflar önce cihazdaki veritabanında tutulur."],
-  ["Cloud'a gidenler", "Cloud yapılandırıldıysa hesap kimliği, senkronize edilen favori/takım/rapor/mera kayıtları ve seçtiğin fotoğraflar Supabase'e gönderilir. Özel mera koordinatları yalnız sahibine açıktır; yaklaşık konum paylaşımı kesin koordinatı yayımlamaz."],
+  ["Buluta gidenler", "Bulut yapılandırıldıysa hesap kimliği, senkronize edilen favori/takım/rapor/mera kayıtları ve seçtiğin fotoğraflar Supabase'e gönderilir. Özel mera koordinatları yalnız sahibine açıktır; yaklaşık konum paylaşımı kesin koordinatı yayımlamaz."],
   ["Konum", "Konum; yakındaki meraları sıralamak, mesafe/yön göstermek ve isteğinle araç konumunu kaydetmek için kullanılır. Kesin konum analitik olaylarına veya uygulama günlüklerine yazılmaz."],
   ["Fotoğraflar", "Seçtiğin görüntüler yüklemeden önce JPEG olarak yeniden kodlanır ve EXIF konum metadatası çıkarılır. Fotoğraf erişimi yalnız sen bir rapora veya meraya fotoğraf eklediğinde kullanılır."],
   ["Üçüncü taraflar", "Kimlik, veri ve özel dosyalar için Supabase; hava/deniz koşulları için Open-Meteo; doğrulanmamış yeni mera araştırması için sunucu üzerinden OpenAI kullanılır. OpenStreetMap verisi uygulamaya çevrimdışı bağlam olarak gömülüdür."],

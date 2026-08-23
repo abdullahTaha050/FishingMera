@@ -41,7 +41,7 @@ export function recommendSpot(
   if (spot.publicationLevel === "PRIVATE" && !spot.ownerId) return null;
 
   const weights = weightsForExperience(input.experience);
-  const safety = evaluateSafety(spot, conditions, input.experience);
+  const safety = evaluateSafety(spot, conditions, input.experience, input.now);
   const speciesRaw = spot.targetSpecies.includes(input.targetSpecies) ? 1 : spot.verificationStatus === "POTENTIAL" ? 0.25 : 0;
   const gear = matchGear(input.gear, input.targetSpecies, spot);
   const condition = conditionsScore(conditions);
@@ -86,4 +86,3 @@ export function rankRecommendations(
     .filter((result): result is RecommendationResult => result !== null)
     .sort((left, right) => Number(right.safety.allowed) - Number(left.safety.allowed) || right.score - left.score || left.straightLineDistanceKm - right.straightLineDistanceKm);
 }
-

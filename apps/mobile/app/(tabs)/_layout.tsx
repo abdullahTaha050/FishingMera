@@ -2,6 +2,7 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import { Tabs } from "expo-router";
 import type { ComponentProps } from "react";
 import type { ColorValue } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { colors } from "@/theme";
 
 type IconName = ComponentProps<typeof Ionicons>["name"];
@@ -13,7 +14,8 @@ function tabIcon(filled: IconName, outline: IconName) {
 }
 
 export default function TabsLayout() {
-  return <Tabs screenOptions={{ tabBarActiveTintColor: colors.primaryDark, tabBarInactiveTintColor: colors.muted, tabBarStyle: { backgroundColor: colors.surface, borderTopColor: colors.border, height: 64, paddingBottom: 8 }, headerStyle: { backgroundColor: colors.bg }, headerShadowVisible: false, headerTitleStyle: { color: colors.ink, fontWeight: "800" } }}>
+  const insets = useSafeAreaInsets();
+  return <Tabs screenOptions={{ tabBarActiveTintColor: colors.primaryDark, tabBarInactiveTintColor: colors.muted, tabBarStyle: { backgroundColor: colors.surface, borderTopColor: colors.border, height: 56 + Math.max(insets.bottom, 8), paddingBottom: Math.max(insets.bottom, 8), paddingTop: 4 }, headerStyle: { backgroundColor: colors.bg }, headerShadowVisible: false, headerTitleStyle: { color: colors.ink, fontWeight: "800" } }}>
     <Tabs.Screen name="index" options={{ title: "Ana Sayfa", tabBarLabel: "Ana Sayfa", tabBarIcon: tabIcon("home", "home-outline") }} />
     <Tabs.Screen name="map" options={{ title: "Harita", tabBarLabel: "Harita", tabBarIcon: tabIcon("map", "map-outline") }} />
     <Tabs.Screen name="saved" options={{ title: "Kaydedilenler", tabBarLabel: "Kaydedilenler", tabBarIcon: tabIcon("bookmark", "bookmark-outline") }} />

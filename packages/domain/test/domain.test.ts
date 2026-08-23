@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { compassLabelTr, haversineDistanceKm, initialBearingDegrees, isRetryableStatus, likelySameSpot, matchGear, nameSimilarity, rankRecommendations, recommendSpot, retryDelayMs, stalenessLabelTr, summarizeRecentReports } from "../src";
+import { compassLabelTr, evaluateSafety, haversineDistanceKm, initialBearingDegrees, isRetryableStatus, likelySameSpot, matchGear, nameSimilarity, rankRecommendations, recommendSpot, retryDelayMs, shortestAngleDelta, smoothHeadingDegrees, stalenessLabelTr, summarizeRecentReports } from "../src";
 import { conditions, gear, spot } from "./fixtures";
 
 const input = {
@@ -18,6 +18,13 @@ describe("geodesy", () => {
     const bearing = initialBearingDegrees(input.userCoordinates, spot.coordinates);
     expect(bearing).toBeGreaterThan(340);
     expect(compassLabelTr(bearing)).toBe("Kuzey");
+  });
+
+  it("smooths headings across north without jumping the long way", () => {
+    expect(shortestAngleDelta(359, 1)).toBe(2);
+    expect(smoothHeadingDegrees(359, 1, { alpha: 0.5, deadband: 0 })).toBe(0);
+    expect(smoothHeadingDegrees(90, 90.8)).toBe(90);
+    expect(smoothHeadingDegrees(10, 190)).toBeCloseTo(3.4, 5);
   });
 });
 
@@ -60,6 +67,25 @@ describe("recommendation", () => {
       { spotId: spot.id, startedAt: "2026-08-21T06:00:00Z", targetSpecies: "LUFER", quantity: 1, result: "GOOD" }
     ], "ISTAVRIT", new Date(input.now));
     expect(summaries.get(spot.id)).toEqual({ speciesId: "ISTAVRIT", reportCount: 2, positiveCount: 1, lastReportedAt: "2026-08-20T06:00:00Z" });
+  });
+});
+
+describe("swimming-area safety", () => {
+  it("blocks an explicitly prohibited swimming area during the statutory season", () => {
+    const decision = evaluateSafety({ ...spot, accessWarnings: ["Şamandıralarla belirlenmiş yüzme alanında avcılık yasak."] }, conditions, "BEGINNER", "2026-08-23T06:05:00Z");
+    expect(decision.allowed).toBe(false);
+    expect(decision.reasonCodes).toContain("SWIMMING_ZONE_SEASONAL_PROHIBITION");
+  });
+
+  it("does not apply the seasonal swimming-area block in December", () => {
+    const decision = evaluateSafety({ ...spot, accessWarnings: ["Şamandıralarla belirlenmiş yüzme alanında avcılık yasak."] }, conditions, "BEGINNER", "2026-12-01T06:05:00Z");
+    expect(decision.reasonCodes).not.toContain("SWIMMING_ZONE_SEASONAL_PROHIBITION");
+  });
+
+  it("caps an unverified beach-use area as caution instead of claiming a ban", () => {
+    const decision = evaluateSafety({ ...spot, accessWarnings: ["Yazın plaj kullanımı yoğun olabilir; yerel durumu doğrula."] }, conditions, "BEGINNER", "2026-08-23T06:05:00Z");
+    expect(decision).toMatchObject({ allowed: true, severity: "CAUTION", scoreCap: 49 });
+    expect(decision.reasonCodes).toContain("SWIMMING_ZONE_STATUS_UNVERIFIED");
   });
 });
 

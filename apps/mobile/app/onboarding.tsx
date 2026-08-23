@@ -10,8 +10,8 @@ import { colors, spacing } from "@/theme";
 
 const experiences: [ExperienceLevel, string][] = [["FIRST_TIME", "İlk defa"], ["BEGINNER", "Acemi"], ["INTERMEDIATE", "Orta"], ["EXPERIENCED", "Deneyimli"]];
 const fishingTypes: [FishingType, string][] = [["SHORE", "Kıyı"], ["BOAT", "Tekne"], ["FRESHWATER", "Tatlı su"]];
-const rodTypes: [NonNullable<GearProfile["rodType"]>, string][] = [["SPIN", "Spin"], ["SURF", "Surf"], ["TELESCOPIC", "Teleskopik"], ["OTHER", "Diğer"], ["UNKNOWN", "Bilmiyorum"]];
-const lineTypes: [NonNullable<GearProfile["mainLine"]>, string][] = [["BRAID", "Örgü"], ["MONO", "Mono"], ["FLUOROCARBON", "Fluorocarbon"], ["OTHER", "Diğer"], ["UNKNOWN", "Bilmiyorum"]];
+const rodTypes: [NonNullable<GearProfile["rodType"]>, string][] = [["SPIN", "At-çek"], ["SURF", "Uzak atış"], ["TELESCOPIC", "Teleskopik"], ["OTHER", "Diğer"], ["UNKNOWN", "Bilmiyorum"]];
+const lineTypes: [NonNullable<GearProfile["mainLine"]>, string][] = [["BRAID", "Örgü"], ["MONO", "Tek misina"], ["FLUOROCARBON", "Florokarbon"], ["OTHER", "Diğer"], ["UNKNOWN", "Bilmiyorum"]];
 
 export default function OnboardingScreen() {
   const state = useAppState();

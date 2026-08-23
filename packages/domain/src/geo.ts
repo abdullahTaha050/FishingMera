@@ -4,6 +4,26 @@ const EARTH_RADIUS_KM = 6371.0088;
 const radians = (degrees: number) => (degrees * Math.PI) / 180;
 const degrees = (radiansValue: number) => (radiansValue * 180) / Math.PI;
 
+export function normalizeDegrees(value: number): number {
+  return (value % 360 + 360) % 360;
+}
+
+export function shortestAngleDelta(from: number, to: number): number {
+  return (normalizeDegrees(to - from + 180) - 180);
+}
+
+export function smoothHeadingDegrees(
+  previous: number,
+  next: number,
+  options: { alpha?: number; deadband?: number; maxStep?: number } = {}
+): number {
+  const { alpha = 0.22, deadband = 1.5, maxStep = 30 } = options;
+  const delta = shortestAngleDelta(previous, next);
+  if (Math.abs(delta) <= deadband) return normalizeDegrees(previous);
+  const boundedDelta = Math.max(-maxStep, Math.min(maxStep, delta));
+  return normalizeDegrees(previous + boundedDelta * alpha);
+}
+
 export function haversineDistanceKm(from: Coordinates, to: Coordinates): number {
   const latDelta = radians(to.latitude - from.latitude);
   const lonDelta = radians(to.longitude - from.longitude);
@@ -26,4 +46,3 @@ export function compassLabelTr(bearing: number): string {
   const labels = ["Kuzey", "Kuzeydoğu", "Doğu", "Güneydoğu", "Güney", "Güneybatı", "Batı", "Kuzeybatı"];
   return labels[Math.round(((bearing % 360) + 360) % 360 / 45) % 8]!;
 }
-

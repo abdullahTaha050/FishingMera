@@ -8,6 +8,35 @@ export const SAKARYA_NORTH_BOUNDS: [number, number, number, number] = [30.55, 41
 export const KOCAELI_NORTH_BOUNDS: [number, number, number, number] = [29.90, 41.05, 30.40, 41.24];
 export const BUNDLED_NORTH_COAST_BOUNDS: [number, number, number, number] = [29.95, 40.95, 31.65, 41.35];
 export const BUNDLED_BASEMAP = bundledBasemapJson as unknown as FeatureCollection;
+export const BUNDLED_ROADS = {
+  type: "FeatureCollection" as const,
+  features: BUNDLED_BASEMAP.features.filter((feature) => feature.properties?.kind === "road" && ["trunk", "primary", "secondary", "tertiary"].includes(String(feature.properties.class)))
+};
+export const BUNDLED_COAST = {
+  type: "FeatureCollection" as const,
+  features: BUNDLED_BASEMAP.features.filter((feature) => feature.properties?.kind === "coastline")
+};
+export const BUNDLED_LAND = {
+  type: "FeatureCollection" as const,
+  features: [{
+    type: "Feature" as const,
+    properties: { kind: "approximate-land-mask" },
+    geometry: {
+      type: "Polygon" as const,
+      coordinates: [[
+        [29.90, 40.80], [31.75, 40.80], [31.75, 41.38], [31.60, 41.34],
+        [31.43, 41.29], [31.38, 41.18], [31.12, 41.09], [30.85, 41.055],
+        [30.70, 41.105], [30.45, 41.16], [30.25, 41.20], [30.00, 41.14],
+        [29.90, 41.12], [29.90, 40.80]
+      ]]
+    }
+  }]
+};
+const labelNames = new Set(["Akçakoca", "Ereğli", "Alaplı", "Yığılca", "Kaynarca", "Kocaali", "Kandıra", "Karasu"]);
+export const BUNDLED_PLACE_LABELS = [...labelNames].flatMap((name) => {
+  const feature = BUNDLED_BASEMAP.features.find((entry) => entry.properties?.kind === "place" && entry.properties.name === name && entry.geometry.type === "Point");
+  return feature && feature.geometry.type === "Point" ? [{ name, coordinates: feature.geometry.coordinates as [number, number] }] : [];
+});
 export const BUNDLED_BASEMAP_VERSION = "osm-north-coast-20260823-v1";
 export const BUNDLED_BASEMAP_SHA256 = "729171b256531279313224f10e3f2fe79764a08751c4882b9fa21033c5d4a590";
 
@@ -15,7 +44,7 @@ export const fallbackMapStyle = {
   version: 8 as const,
   name: "Mera offline fallback",
   sources: {},
-  layers: [{ id: "background", type: "background" as const, paint: { "background-color": "#E8E4D6" } }]
+  layers: [{ id: "background", type: "background" as const, paint: { "background-color": "#B9DCE3" } }]
 };
 
 export function spotsGeoJson(spots: Spot[]) {

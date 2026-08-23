@@ -8,6 +8,7 @@ import { Button, Card, Label, Loading, Screen } from "@/components";
 import { cacheCondition, conditionsMap, recentReportsMap, trackEvent } from "@/db";
 import { HENDEK_DEMO_LOCATION, useCurrentLocation } from "@/location";
 import { downloadOfflineRegion, SAKARYA_NORTH_BOUNDS } from "@/map";
+import { beginnerSuitabilityText, safetyReasonText, verificationText } from "@/labels";
 import { useAppState } from "@/store";
 import { colors, spacing } from "@/theme";
 
@@ -15,15 +16,21 @@ const reasonText: Record<string, string> = {
   SPECIES_REPORTED: "Hedef tür için kaynak veya bölgesel kayıt var.",
   SPECIES_EVIDENCE_WEAK: "Bu nokta yalnızca coğrafi potansiyel; tür henüz doğrulanmadı.",
   CONDITIONS_RELATIVELY_SUITABLE: "Model verilerine göre hava ve deniz nispeten uygun görünüyor.",
+  CONDITIONS_ADVERSE: "Hava veya deniz koşulları temkinli olmayı gerektiriyor.",
   CONDITIONS_MISSING: "Güncel koşul verisi yok; eski veri güncel gibi kullanılmadı.",
   GEAR_GOOD_MATCH: "Seçili takımın başlangıç kural setiyle uyumlu.",
-  NO_MODEL_RISK_FLAG: "Mevcut veride hard risk kuralı tetiklenmedi; yerel koşulları yine kontrol et.",
+  GEAR_PARTIAL_MATCH: "Seçili takımın uyumu sınırlı veriden değerlendirildi.",
+  GEAR_POOR_MATCH: "Seçili takım bu hedef ve mera için zayıf eşleşiyor.",
+  NO_MODEL_RISK_FLAG: "Mevcut veride kesin risk kuralı tetiklenmedi; yerel koşulları yine kontrol et.",
   ACCESS_UNKNOWN: "Erişim bilgisi bilinmiyor.",
   PROHIBITION_UNKNOWN: "Güncel yasak/izin durumu doğrulanmadı.",
   RECENT_REPORTS_AVAILABLE: "Son 90 gündeki cihaz raporların hedef tür için hesaba katıldı.",
-  RECENT_REPORTS_MISSING: "Hedef tür için yakın tarihli cihaz raporu yok."
+  RECENT_REPORTS_MISSING: "Hedef tür için yakın tarihli cihaz raporu yok.",
+  SEASON_MATCH: "Hedef türün yapılandırılmış etkin dönemlerinden biri.",
+  OUTSIDE_PRIMARY_SEASON: "Hedef türün öncelikli etkin döneminin dışında.",
+  STRAIGHT_LINE_DISTANCE: "Mesafe kuş uçuşu olarak hesaplandı; yol mesafesi değildir.",
+  ...safetyReasonText
 };
-const verificationText: Record<RecommendationResult["spot"]["verificationStatus"], string> = { VERIFIED: "Doğrulanmış", COMMUNITY: "Topluluk", WEB_DISCOVERED: "Web keşfi", POTENTIAL: "Potansiyel · doğrulanmadı" };
 
 export default function RecommendationsScreen() {
   const state = useAppState();
@@ -79,17 +86,17 @@ export default function RecommendationsScreen() {
     if (!state.db) return;
     try {
       await downloadOfflineRegion(state.db, { id: "sakarya-north-v1", name: "Sakarya Kuzey Sahili", bounds: SAKARYA_NORTH_BOUNDS }, () => undefined);
-      Alert.alert("Offline hazır", "Yol, kıyı, yer adı ve mera pinleri uygulama paketinde doğrulandı.");
-    } catch { Alert.alert("Offline harita hazırlanamadı"); }
+      Alert.alert("Çevrimdışı kullanım hazır", "Yol, kıyı, yer adı ve mera işaretleri uygulama paketinde doğrulandı.");
+    } catch { Alert.alert("Çevrimdışı harita hazırlanamadı"); }
   }
   return <Screen><ScrollView contentContainerStyle={styles.content}>
     {state.fishingType !== "SHORE" && <Card><Text style={styles.risk}>Bu MVP yalnızca kıyı avı önerir.</Text><Text style={styles.subtle}>Tekne veya tatlı su seçiliyken kıyı meralarını yanlış bağlamda sıralamıyoruz.</Text><Button title="Profilden Kıyı seç" variant="secondary" onPress={() => router.push("/(tabs)/profile")} /></Card>}
     <Card><Label>Konum kaynağı</Label><Text style={styles.value}>{location.coordinates ? "Cihaz GPS" : "Hendek demo konumu"}</Text><Text style={styles.subtle}>{location.coordinates ? `GPS doğruluğu: ±${Math.round(location.accuracy ?? 0)} m` : "İzin verince gerçek konumla yeniden hesaplanır."}</Text><Button title={location.loading ? "Konum alınıyor…" : "Konumumu kullan"} variant="secondary" disabled={location.loading} onPress={location.request} /></Card>
     {refreshing && <Text style={styles.refresh}>İlk beş sonuç için hava/deniz cache’i güncelleniyor…</Text>}
     {results.map((result) => <ResultCard key={result.spot.id} result={result} condition={conditionBySpot.get(result.spot.id)} onOpen={() => router.push({ pathname: "/spot/[id]", params: { id: result.spot.id } })} onMap={() => router.push({ pathname: "/(tabs)/map", params: { spotId: result.spot.id } })} onOffline={offline} />)}
-    {state.fishingType === "SHORE" && results.length === 0 && <Card><Text style={styles.value}>Seçilen yarıçapta kayıt yok.</Text><Text style={styles.subtle}>İnternet varsa “daha fazla mera ara” sunucu keşfini kullanabilir; mevcut seed veri çalışmaya devam eder.</Text></Card>}
-    {state.fishingType === "SHORE" && <Button title={discovering ? "Web kaynakları araştırılıyor…" : "Daha fazla mera ara"} variant="secondary" disabled={discovering || !state.isConnected} onPress={discover} />}
-    {discovered.length > 0 && <View style={{ gap: spacing.sm }}><Label>Keşif adayları · öneri listesine henüz eklenmedi</Label>{discovered.map((candidate, index) => <Card key={`${candidate.canonicalName}-${index}`}><Text style={styles.name}>{candidate.canonicalName}</Text><Text style={styles.subtle}>{[candidate.district, candidate.province].filter(Boolean).join(", ") || "Bölge bilinmiyor"} · {candidate.coordinatePrecision === "UNKNOWN" ? "Koordinat kanıtı yok" : candidate.coordinatePrecision === "APPROXIMATE" ? "Yaklaşık koordinat" : "Kaynaklı koordinat"}</Text><Text style={styles.risk}>Doğrulanmamış web adayı · güven skoru %{Math.round(candidate.confidenceScore * 100)}</Text>{candidate.sources.slice(0, 3).map((source) => <Text key={source.url} style={styles.link} onPress={() => Linking.openURL(source.url)}>• {source.title} ↗</Text>)}</Card>)}</View>}
+    {state.fishingType === "SHORE" && results.length === 0 && <Card><Text style={styles.value}>Seçilen yarıçapta kayıt yok.</Text><Text style={styles.subtle}>İnternet varsa “daha fazla mera ara” sunucu keşfini kullanabilir; mevcut başlangıç verisi çalışmaya devam eder.</Text></Card>}
+    {state.fishingType === "SHORE" && <Button title={discovering ? "İnternet kaynakları araştırılıyor…" : "Daha fazla mera ara"} variant="secondary" disabled={discovering || !state.isConnected} onPress={discover} />}
+    {discovered.length > 0 && <View style={{ gap: spacing.sm }}><Label>Keşif adayları · öneri listesine henüz eklenmedi</Label>{discovered.map((candidate, index) => <Card key={`${candidate.canonicalName}-${index}`}><Text style={styles.name}>{candidate.canonicalName}</Text><Text style={styles.subtle}>{[candidate.district, candidate.province].filter(Boolean).join(", ") || "Bölge bilinmiyor"} · {candidate.coordinatePrecision === "UNKNOWN" ? "Koordinat kanıtı yok" : candidate.coordinatePrecision === "APPROXIMATE" ? "Yaklaşık koordinat" : "Kaynaklı koordinat"}</Text><Text style={styles.risk}>Doğrulanmamış internet adayı · güven skoru %{Math.round(candidate.confidenceScore * 100)}</Text>{candidate.sources.slice(0, 3).map((source) => <Text key={source.url} style={styles.link} onPress={() => Linking.openURL(source.url)}>• {source.title} ↗</Text>)}</Card>)}</View>}
   </ScrollView></Screen>;
 }
 
@@ -97,12 +104,13 @@ function ResultCard({ result, condition, onOpen, onMap, onOffline }: { result: R
   const conditionFactor = result.factors.find((item) => item.factor === "CONDITIONS");
   const gearFactor = result.factors.find((item) => item.factor === "GEAR");
   const bestWindow = condition?.sunrise ? `${new Date(condition.sunrise).toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" })} sonrası yaklaşık 3 saat` : "Koşul verisi gelince hesaplanır";
+  const swimmingZoneUnverified = result.safety.reasonCodes.includes("SWIMMING_ZONE_STATUS_UNVERIFIED");
   return <Card><View style={styles.topRow}><View style={{ flex: 1 }}><Text style={styles.name}>{result.spot.canonicalName}</Text><Text style={styles.subtle}>{result.spot.district} · Kuş uçuşu {result.straightLineDistanceKm} km</Text></View><View style={[styles.score, !result.safety.allowed && styles.scoreRisk]}><Text style={styles.scoreText}>{result.score}</Text><Text style={styles.scoreOut}>/100</Text></View></View>
-    <Text style={result.safety.allowed ? styles.good : styles.risk}>{result.safety.allowed ? "Bugün sana göre değerlendirilebilir" : "Risk kuralı nedeniyle üst sıralara alınmadı"}</Text>
-    <View style={styles.metrics}><Text style={styles.metric}>{verificationText[result.spot.verificationStatus]}</Text><Text style={styles.metric}>{conditionFactor?.reasonCode === "CONDITIONS_MISSING" ? "Koşul verisi yok" : `Dalga ${condition?.waveHeightM ?? "—"} m · Rüzgâr ${condition?.windSpeedKmh ?? "—"} km/s`}</Text><Text style={styles.metric}>Acemi: {result.spot.beginnerSuitability}</Text><Text style={styles.metric}>Takım: {gearFactor?.reasonCode === "GEAR_GOOD_MATCH" ? "Uygun" : "Kontrol et"}</Text></View>
+    <Text style={result.safety.allowed && !swimmingZoneUnverified ? styles.good : styles.risk}>{!result.safety.allowed ? "Risk veya yasak kuralı nedeniyle önerilmedi" : swimmingZoneUnverified ? "Yüzme alanı ve güncel yasak durumu doğrulanmadan gitme" : "Bugün sana göre değerlendirilebilir"}</Text>
+    <View style={styles.metrics}><Text style={styles.metric}>{verificationText[result.spot.verificationStatus]}</Text><Text style={styles.metric}>{conditionFactor?.reasonCode === "CONDITIONS_MISSING" ? "Koşul verisi yok" : `Dalga ${condition?.waveHeightM ?? "—"} m · Rüzgâr ${condition?.windSpeedKmh ?? "—"} km/s`}</Text><Text style={styles.metric}>Acemi: {beginnerSuitabilityText[result.spot.beginnerSuitability]}</Text><Text style={styles.metric}>Takım: {gearFactor?.reasonCode === "GEAR_GOOD_MATCH" ? "Uygun" : "Kontrol et"}</Text></View>
     <Text style={styles.subtle}>En uygun tahmini zaman: {bestWindow}</Text>
-    <Label>Neden?</Label>{result.explanationCodes.slice(0, 4).map((code) => <Text key={code} style={styles.reason}>• {reasonText[code] ?? code.replaceAll("_", " ").toLocaleLowerCase("tr-TR")}</Text>)}
-    <View style={styles.actions}><Button title="Detay" variant="secondary" onPress={onOpen} /><Button title="Haritada gör" variant="secondary" onPress={onMap} /><Button title="Offline indir" variant="secondary" onPress={onOffline} /></View>
+    <Label>Neden?</Label>{result.explanationCodes.slice(0, 5).map((code) => <Text key={code} style={styles.reason}>• {reasonText[code] ?? "Ayrıntısı henüz doğrulanmamış bir değerlendirme uyarısı var."}</Text>)}
+    <View style={styles.actions}><Button title="Detay" variant="secondary" onPress={onOpen} /><Button title="Haritada gör" variant="secondary" onPress={onMap} /><Button title="Çevrimdışı hazırla" variant="secondary" onPress={onOffline} /></View>
   </Card>;
 }
 
