@@ -12,17 +12,23 @@
   ],
   "scripts": {
     "build": "npm run build --workspaces --if-present",
-    "lint": "npm run lint --workspaces --if-present",
+    "lint": "eslint apps/mobile packages --max-warnings=0",
     "typecheck": "npm run typecheck --workspaces --if-present",
     "test": "npm run test --workspaces --if-present",
     "test:coverage": "npm run test:coverage --workspaces --if-present",
     "mobile": "npm --workspace @mera/mobile run start",
     "mobile:android": "npm --workspace @mera/mobile run android",
-    "mobile:ios": "npm --workspace @mera/mobile run ios"
+    "mobile:ios": "npm --workspace @mera/mobile run ios",
+    "mobile:export": "npm --workspace @mera/mobile run export",
+    "deno:check": "npx deno check --config supabase/functions/api/deno.json supabase/functions/api/index.ts",
+    "db:parse": "node scripts/parse-migration.mjs"
   },
   "devDependencies": {
     "@react-native-async-storage/async-storage": "2.2.0",
     "@types/node": "^24.10.1",
+    "eslint": "^9.39.5",
+    "eslint-config-expo": "^57.0.1",
+    "eslint-import-resolver-typescript": "^4.4.5",
     "react": "19.2.3",
     "react-dom": "19.2.3",
     "react-native-gesture-handler": "2.32.0",

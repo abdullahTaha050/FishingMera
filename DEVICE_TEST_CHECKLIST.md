@@ -20,5 +20,7 @@ Run on one current Android phone and one supported iPhone. Record device, OS, ap
 - [ ] Denied/revoked location and sensor permissions have useful fallback screens.
 - [ ] Private spot is absent from another account and public API/recommendations.
 - [ ] Approximate spot never exposes its exact coordinate.
+- [ ] New private spot created offline appears locally and syncs once without public coordinate exposure.
+- [ ] “Daha fazla mera ara” labels web candidates as unverified and opens every cited source.
+- [ ] Regulation card shows version/check date and remains available in airplane mode.
 - [ ] Dark mode, sunlight contrast, Dynamic Type and 44/48 pt touch targets checked.
-

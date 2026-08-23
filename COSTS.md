@@ -15,9 +15,8 @@ Sources: [Supabase billing](https://supabase.com/docs/guides/platform/billing-on
 
 ## Cost controls
 
-- Weather and marine cache key: rounded coordinate (0.05 degrees) + UTC forecast hour; six-hour soft TTL, twelve-hour stale-if-error.
+- Weather and marine cache key: rounded coordinate (0.05 degrees) + UTC forecast hour; six-hour TTL, with the latest fallback always labeled stale.
 - Discovery region key: H3/geohash-equivalent server grid + radius bucket + species; 30-day TTL unless explicitly refreshed.
 - One discovery request per region at a time, idempotent job key and daily/monthly circuit breakers.
-- Photo upload size/type limits and per-user rate limits.
+- Reserved photo storage has size/type limits; uploads remain disabled until EXIF stripping and abuse controls are implemented.
 - Existing data, offline packs and deterministic scoring never depend on a paid AI call.
-
