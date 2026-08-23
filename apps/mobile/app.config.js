@@ -8,12 +8,12 @@ const config = {
   primaryColor: "#375E4C",
   orientation: "portrait",
   userInterfaceStyle: "automatic",
-  runtimeVersion: { policy: "appVersion" },
   ios: {
     bundleIdentifier: "app.mera.mobile",
     buildNumber: "1",
     supportsTablet: true,
     infoPlist: {
+      ITSAppUsesNonExemptEncryption: false,
       NSLocationWhenInUseUsageDescription: "Yakındaki meraları bulmak, pusula yönünü ve kuş uçuşu mesafeyi göstermek için konumun gerekir.",
       NSMotionUsageDescription: "Mera ve araç yönünü çevrimdışı göstermek için pusula sensörü kullanılır."
     }

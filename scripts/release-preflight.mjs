@@ -18,7 +18,7 @@ if (width !== height || width < 1024) throw new Error(`APP_ICON_INVALID_SIZE:${w
 if (colorType === 4 || colorType === 6) throw new Error("APP_ICON_MUST_BE_OPAQUE");
 
 const appConfig = await readFile("apps/mobile/app.config.js", "utf8");
-for (const marker of ["app.mera.mobile", "./assets/icon.png", "adaptiveIcon", "expo-splash-screen", "buildNumber", "versionCode", "EAS_PROJECT_ID", "android.permission.RECORD_AUDIO"]) {
+for (const marker of ["app.mera.mobile", "./assets/icon.png", "adaptiveIcon", "expo-splash-screen", "buildNumber", "versionCode", "EAS_PROJECT_ID", "ITSAppUsesNonExemptEncryption", "android.permission.RECORD_AUDIO"]) {
   if (!appConfig.includes(marker)) throw new Error(`APP_CONFIG_MARKER_MISSING:${marker}`);
 }
 
