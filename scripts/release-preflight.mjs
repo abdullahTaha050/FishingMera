@@ -5,7 +5,7 @@ const requiredFiles = [
   "DEPLOYMENT.md", "DEVICE_TEST_CHECKLIST.md", "PRIVACY_POLICY_TR.md", "STORE_RELEASE_CHECKLIST.md", "RELEASE_AUDIT.md", ".maestro/offline-core.yaml", ".maestro/offline-catch.yaml",
   ".github/workflows/ci.yml", ".github/workflows/deploy-backend.yml", ".github/workflows/mobile-build.yml",
   "apps/mobile/app/privacy.tsx", "apps/mobile/assets/icon.png", "apps/mobile/assets/sakarya-kocaeli-basemap.json", "apps/mobile/eas.json",
-  "supabase/migrations/202608230001_initial.sql", "supabase/functions/api/index.ts", "supabase/tests/001_spatial_and_privacy.sql"
+  "supabase/migrations/202608230001_initial.sql", "supabase/migrations/202608230002_seed_spots.sql", "supabase/functions/api/index.ts", "supabase/tests/001_spatial_and_privacy.sql"
 ];
 await Promise.all(requiredFiles.map((path) => access(path).catch(() => { throw new Error(`REQUIRED_FILE_MISSING:${path}`); })));
 
@@ -26,6 +26,13 @@ const eas = JSON.parse(await readFile("apps/mobile/eas.json", "utf8"));
 if (eas.build?.preview?.android?.buildType !== "apk") throw new Error("EAS_PREVIEW_APK_MISSING");
 if (eas.build?.production?.android?.buildType !== "app-bundle") throw new Error("EAS_PRODUCTION_AAB_MISSING");
 if (!eas.build?.simulator?.ios?.simulator) throw new Error("EAS_IOS_SIMULATOR_PROFILE_MISSING");
+if (eas.cli?.appVersionSource !== "remote") throw new Error("EAS_REMOTE_VERSION_SOURCE_REQUIRED");
+
+const theme = await readFile("apps/mobile/src/theme.ts", "utf8");
+for (const marker of ["?android:attr/colorBackground", "@android:color/background_light", "?android:attr/textColorPrimary"]) {
+  if (!theme.includes(marker)) throw new Error(`ANDROID_PORTABLE_COLOR_MISSING:${marker}`);
+}
+if (theme.includes('"?attr/colorSurface"')) throw new Error("ANDROID_MATERIAL_COLOR_WITHOUT_SYSTEM_FALLBACK");
 
 const migration = await readFile("supabase/migrations/202608230001_initial.sql", "utf8");
 for (const marker of ["create extension if not exists postgis", "nearby_spots", "enable row level security", "spots_publication_requires_permanent_insert", "reports_publication_requires_permanent_insert", "catch-photos", "spot-photos", "on delete cascade"]) {
