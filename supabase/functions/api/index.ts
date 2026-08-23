@@ -563,16 +563,22 @@ async function discover(request: Request) {
       rejectedCandidateCount: parsed.candidates.length - accepted.length,
     });
   } catch (error) {
+    const errorCode = error instanceof Error && /^[A-Z0-9_]+$/.test(error.message)
+      ? error.message
+      : error instanceof Error
+      ? error.name
+      : "UNKNOWN";
     await db.from("discovery_runs").update({
       status: "FAILED",
       completed_at: new Date().toISOString(),
-      error_code: error instanceof Error ? error.name : "UNKNOWN",
+      error_code: errorCode,
     }).eq("id", run.data.id);
     structuredLog("discovery_failed", {
-      code: error instanceof Error ? error.name : "UNKNOWN",
+      code: errorCode,
     });
     return response({
       code: "DISCOVERY_FAILED",
+      failureCode: errorCode,
       retryable: true,
       existingDataStillAvailable: true,
     }, 503);
