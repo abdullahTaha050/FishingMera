@@ -11,3 +11,4 @@ ios/
 *.log
 .DS_Store
 supabase/.temp/
+releases/
