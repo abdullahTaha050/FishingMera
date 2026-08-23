@@ -389,6 +389,148 @@ async function discover(request: Request) {
   }
 }
 
+const syncItemSchema = z.object({
+  id: z.string().uuid(),
+  entityId: z.string().uuid(),
+  entityType: z.enum([
+    "CATCH_REPORT",
+    "USER_SPOT",
+    "GEAR_PROFILE",
+    "FAVORITE",
+    "FEEDBACK",
+  ]),
+  operation: z.enum(["UPSERT", "DELETE"]),
+  payload: z.record(z.string(), z.unknown()),
+  idempotencyKey: z.string().min(10).max(300),
+});
+
+async function syncMutation(request: Request) {
+  const userId = await authenticatedUser(request);
+  if (!userId) return response({ code: "AUTH_REQUIRED" }, 401);
+  const item = syncItemSchema.parse(await request.json());
+  const headerKey = request.headers.get("x-idempotency-key");
+  if (headerKey !== item.idempotencyKey) {
+    return response({ code: "IDEMPOTENCY_KEY_MISMATCH" }, 400);
+  }
+  const db = serviceClient();
+  const previous = await db.from("sync_operations").select("response_payload")
+    .eq("owner_id", userId).eq("idempotency_key", item.idempotencyKey)
+    .maybeSingle();
+  if (previous.data) {
+    return response({
+      ok: true,
+      replayed: true,
+      result: previous.data.response_payload,
+    });
+  }
+
+  let mutationError: { message: string; code?: string } | null = null;
+  if (item.entityType === "FAVORITE") {
+    if (item.operation === "DELETE" || item.payload.favorite === false) {
+      mutationError =
+        (await db.from("favorites").delete().eq("owner_id", userId).eq(
+          "spot_id",
+          String(item.payload.spotId),
+        )).error;
+    } else {mutationError = (await db.from("favorites").upsert({
+        owner_id: userId,
+        spot_id: String(item.payload.spotId),
+        updated_at: new Date().toISOString(),
+      }, { onConflict: "owner_id,spot_id" })).error;}
+  } else if (item.entityType === "GEAR_PROFILE") {
+    const gear = z.object({
+      id: z.string().uuid(),
+      name: z.string().min(1).max(80),
+      rodType: z.string().optional(),
+      rodLengthCm: z.number().optional(),
+      castingWeightMinG: z.number().optional(),
+      castingWeightMaxG: z.number().optional(),
+      reelSize: z.number().optional(),
+      mainLine: z.string().optional(),
+      lineDiameterMm: z.number().optional(),
+      peRating: z.number().optional(),
+    }).parse(item.payload.gear);
+    mutationError = (await db.from("gear_profiles").upsert({
+      id: gear.id,
+      owner_id: userId,
+      name: gear.name,
+      rod_type: gear.rodType ?? null,
+      rod_length_cm: gear.rodLengthCm ?? null,
+      casting_weight_min_g: gear.castingWeightMinG ?? null,
+      casting_weight_max_g: gear.castingWeightMaxG ?? null,
+      reel_size: gear.reelSize ?? null,
+      main_line: gear.mainLine ?? null,
+      line_diameter_mm: gear.lineDiameterMm ?? null,
+      pe_rating: gear.peRating ?? null,
+      updated_at: new Date().toISOString(),
+    })).error;
+  } else if (item.entityType === "CATCH_REPORT") {
+    const report = z.object({
+      id: z.string().uuid(),
+      startedAt: z.string().datetime(),
+      targetSpecies: z.string(),
+      caughtSpecies: z.array(z.unknown()).default([]),
+      quantity: z.number().int().min(0).default(0),
+      result: z.enum(["NONE", "LOW", "MEDIUM", "GOOD"]),
+      gearProfileId: z.string().uuid().nullable().optional(),
+      note: z.string().max(5000).optional(),
+      spotId: z.string().uuid().nullable().optional(),
+    }).parse(item.payload);
+    let snapshotId: string | null = null;
+    if (report.spotId) {
+      const snapshot = await db.from("condition_snapshots").select("id").eq(
+        "spot_id",
+        report.spotId,
+      ).lte("observed_at", report.startedAt).order("observed_at", {
+        ascending: false,
+      }).limit(1).maybeSingle();
+      snapshotId = snapshot.data?.id ?? null;
+    }
+    mutationError = (await db.from("catch_reports").upsert({
+      id: report.id,
+      owner_id: userId,
+      spot_id: report.spotId ?? null,
+      started_at: report.startedAt,
+      target_species_id: report.targetSpecies,
+      caught_species: report.caughtSpecies,
+      quantity: report.quantity,
+      result: report.result,
+      gear_profile_id: report.gearProfileId ?? null,
+      note: report.note ?? null,
+      condition_snapshot_id: snapshotId,
+      updated_at: new Date().toISOString(),
+    })).error;
+  } else {
+    return response({ code: "SYNC_ENTITY_NOT_IMPLEMENTED" }, 422);
+  }
+  if (mutationError) {
+    return response({
+      code: "SYNC_MUTATION_FAILED",
+      detail: mutationError.code ?? "DATABASE",
+    }, 503);
+  }
+  const resultPayload = {
+    entityId: item.entityId,
+    appliedAt: new Date().toISOString(),
+  };
+  const ledger = await db.from("sync_operations").insert({
+    owner_id: userId,
+    idempotency_key: item.idempotencyKey,
+    entity_type: item.entityType,
+    entity_id: item.entityId,
+    operation: item.operation,
+    response_payload: resultPayload,
+  });
+  if (ledger.error?.code !== "23505" && ledger.error) {
+    return response({ code: "SYNC_LEDGER_FAILED" }, 503);
+  }
+  return response({
+    ok: true,
+    replayed: ledger.error?.code === "23505",
+    result: resultPayload,
+  });
+}
+
 Deno.serve(async (request) => {
   if (request.method === "OPTIONS") {
     return new Response(null, { status: 204, headers: corsHeaders });
@@ -405,6 +547,9 @@ Deno.serve(async (request) => {
     }
     if (request.method === "POST" && path === "/discover") {
       return discover(request);
+    }
+    if (request.method === "POST" && path === "/sync") {
+      return syncMutation(request);
     }
     return response({ code: "NOT_FOUND" }, 404);
   } catch (error) {

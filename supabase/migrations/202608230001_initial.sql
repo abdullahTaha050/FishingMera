@@ -7,7 +7,7 @@ create type public.verification_status as enum ('VERIFIED', 'COMMUNITY', 'WEB_DI
 create type public.publication_level as enum ('PUBLIC', 'PRIVATE', 'APPROXIMATE');
 create type public.coordinate_precision as enum ('EXACT', 'APPROXIMATE', 'UNKNOWN');
 create type public.prohibited_status as enum ('NONE', 'UNKNOWN', 'PROHIBITED', 'SECURITY_AREA');
-create type public.sync_entity_type as enum ('CATCH_REPORT', 'USER_SPOT', 'FAVORITE', 'FEEDBACK');
+create type public.sync_entity_type as enum ('CATCH_REPORT', 'USER_SPOT', 'GEAR_PROFILE', 'FAVORITE', 'FEEDBACK');
 create type public.sync_operation_type as enum ('UPSERT', 'DELETE');
 
 create table public.profiles (
@@ -358,4 +358,3 @@ on conflict (id) do nothing;
 create policy catch_photos_owner_select on storage.objects for select to authenticated using (bucket_id = 'catch-photos' and (storage.foldername(name))[1] = auth.uid()::text);
 create policy catch_photos_owner_insert on storage.objects for insert to authenticated with check (bucket_id = 'catch-photos' and (storage.foldername(name))[1] = auth.uid()::text);
 create policy catch_photos_owner_delete on storage.objects for delete to authenticated using (bucket_id = 'catch-photos' and (storage.foldername(name))[1] = auth.uid()::text);
-

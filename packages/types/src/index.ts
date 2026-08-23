@@ -154,7 +154,7 @@ export interface RecommendationResult {
 export interface SyncQueueItem {
   id: UUID;
   entityId: UUID;
-  entityType: "CATCH_REPORT" | "USER_SPOT" | "FAVORITE" | "FEEDBACK";
+  entityType: "CATCH_REPORT" | "USER_SPOT" | "GEAR_PROFILE" | "FAVORITE" | "FEEDBACK";
   operation: "UPSERT" | "DELETE";
   payload: Record<string, unknown>;
   idempotencyKey: string;
@@ -163,4 +163,3 @@ export interface SyncQueueItem {
   nextAttemptAt: string;
   createdAt: string;
 }
-
