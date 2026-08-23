@@ -23,6 +23,7 @@ for (const marker of ["app.mera.mobile", "./assets/icon.png", "adaptiveIcon", "e
 }
 const mobilePackage = JSON.parse(await readFile("apps/mobile/package.json", "utf8"));
 if (!mobilePackage.dependencies?.["expo-crypto"]) throw new Error("EXPO_CRYPTO_DEPENDENCY_MISSING");
+if (!mobilePackage.dependencies?.["@expo/vector-icons"]) throw new Error("EXPO_VECTOR_ICONS_DEPENDENCY_MISSING");
 
 const eas = JSON.parse(await readFile("apps/mobile/eas.json", "utf8"));
 if (eas.build?.preview?.android?.buildType !== "apk") throw new Error("EAS_PREVIEW_APK_MISSING");
@@ -44,6 +45,10 @@ for (const marker of ["SafeAreaView", 'edges={["bottom"]}']) {
 const uuidSources = await Promise.all(["apps/mobile/src/db.ts", "apps/mobile/src/photos.ts", "apps/mobile/app/onboarding.tsx"].map((path) => readFile(path, "utf8")));
 if (uuidSources.some((source) => source.includes("globalThis.crypto.randomUUID"))) throw new Error("UNSUPPORTED_REACT_NATIVE_RANDOM_UUID");
 if (uuidSources.some((source) => !source.includes('from "expo-crypto"'))) throw new Error("EXPO_CRYPTO_UUID_IMPORT_MISSING");
+const tabs = await readFile("apps/mobile/app/(tabs)/_layout.tsx", "utf8");
+for (const marker of ["Ionicons", "tabBarIcon", 'tabIcon("home", "home-outline")', 'tabIcon("fish", "fish-outline")']) {
+  if (!tabs.includes(marker)) throw new Error(`TAB_ICON_MISSING:${marker}`);
+}
 
 const migration = await readFile("supabase/migrations/202608230001_initial.sql", "utf8");
 for (const marker of ["create extension if not exists postgis", "nearby_spots", "enable row level security", "spots_publication_requires_permanent_insert", "reports_publication_requires_permanent_insert", "catch-photos", "spot-photos", "on delete cascade"]) {
