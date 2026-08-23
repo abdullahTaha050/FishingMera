@@ -1,4 +1,7 @@
 /** @type {import("expo/config").ExpoConfig} */
+const isDevelopmentClientBuild = ["development", "simulator"].includes(process.env.EAS_BUILD_PROFILE ?? "");
+const developmentClientPlugin = ["expo-dev-client", { launchMode: "launcher", android: { launchMode: "launcher" } }];
+
 const config = {
   name: "Mera",
   slug: "mera",
@@ -30,6 +33,7 @@ const config = {
     predictiveBackGestureEnabled: true
   },
   plugins: [
+    ...(isDevelopmentClientBuild ? [developmentClientPlugin] : []),
     "expo-router",
     "@maplibre/maplibre-react-native",
     ["expo-splash-screen", { image: "./assets/icon.png", imageWidth: 180, resizeMode: "contain", backgroundColor: "#F4F2EA" }],
