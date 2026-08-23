@@ -29,10 +29,12 @@ if (!eas.build?.simulator?.ios?.simulator) throw new Error("EAS_IOS_SIMULATOR_PR
 if (eas.cli?.appVersionSource !== "remote") throw new Error("EAS_REMOTE_VERSION_SOURCE_REQUIRED");
 
 const theme = await readFile("apps/mobile/src/theme.ts", "utf8");
-for (const marker of ["?android:attr/colorBackground", "@android:color/background_light", "?android:attr/textColorPrimary"]) {
-  if (!theme.includes(marker)) throw new Error(`ANDROID_PORTABLE_COLOR_MISSING:${marker}`);
+for (const marker of ["Appearance.getColorScheme()", '"#F4F2EA", "#121815"', '"#18221D", "#F3F5F0"']) {
+  if (!theme.includes(marker)) throw new Error(`ANDROID_ADAPTIVE_COLOR_MISSING:${marker}`);
 }
-if (theme.includes('"?attr/colorSurface"')) throw new Error("ANDROID_MATERIAL_COLOR_WITHOUT_SYSTEM_FALLBACK");
+if (theme.includes("PlatformColor") || theme.includes('"?attr/') || theme.includes('"?android:attr/')) {
+  throw new Error("ANDROID_RUNTIME_RESOURCE_COLOR_FORBIDDEN");
+}
 
 const migration = await readFile("supabase/migrations/202608230001_initial.sql", "utf8");
 for (const marker of ["create extension if not exists postgis", "nearby_spots", "enable row level security", "spots_publication_requires_permanent_insert", "reports_publication_requires_permanent_insert", "catch-photos", "spot-photos", "on delete cascade"]) {
