@@ -330,7 +330,10 @@ as $$
     and s.coordinate_precision <> 'UNKNOWN'
     and s.prohibited_status not in ('PROHIBITED', 'SECURITY_AREA')
     and extensions.st_dwithin(s.location, extensions.st_setsrid(extensions.st_makepoint(lon, lat), 4326)::extensions.geography, radius_m)
-  order by s.location <-> extensions.st_setsrid(extensions.st_makepoint(lon, lat), 4326)::extensions.geography
+  order by extensions.st_distance(
+    s.location,
+    extensions.st_setsrid(extensions.st_makepoint(lon, lat), 4326)::extensions.geography
+  )
   limit least(greatest(result_limit, 1), 200);
 $$;
 

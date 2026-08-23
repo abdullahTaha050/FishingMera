@@ -28,5 +28,8 @@ enable_manual_linking = true
 enabled = true
 file_size_limit = "10MiB"
 
+[storage.vector]
+enabled = false
+
 [functions.api]
 verify_jwt = false
