@@ -17,7 +17,7 @@ export function Label({ children }: React.PropsWithChildren) { return <Text styl
 
 export function OfflineBanner({ connected, lastSyncAt }: { connected: boolean; lastSyncAt: string | null }) {
   if (connected && !lastSyncAt) return null;
-  return <View style={[styles.banner, !connected && styles.offlineBanner]}><Text style={styles.bannerText}>{connected ? `Son senkronizasyon: ${stalenessLabelTr(lastSyncAt ?? undefined)}` : `Çevrimdışı · ${lastSyncAt ? stalenessLabelTr(lastSyncAt) : "Seed verisi kullanılıyor"}`}</Text></View>;
+  return <View style={[styles.banner, !connected && styles.offlineBanner]}><Text style={[styles.bannerText, !connected && styles.offlineBannerText]}>{connected ? `Son senkronizasyon: ${stalenessLabelTr(lastSyncAt ?? undefined)}` : `Çevrimdışı · ${lastSyncAt ? stalenessLabelTr(lastSyncAt) : "Seed verisi kullanılıyor"}`}</Text></View>;
 }
 
 export function Loading() { return <View style={styles.loading}><ActivityIndicator size="large" color={colors.primary} /><Text style={styles.muted}>Yerel veriler hazırlanıyor…</Text></View>; }
@@ -36,5 +36,6 @@ const styles = StyleSheet.create({
   label: { color: colors.muted, fontSize: 13, fontWeight: "700", textTransform: "uppercase", letterSpacing: 0.7 },
   banner: { backgroundColor: colors.banner, paddingHorizontal: spacing.md, paddingVertical: 8 },
   offlineBanner: { backgroundColor: colors.offline },
+  offlineBannerText: { color: colors.white },
   bannerText: { color: colors.ink, textAlign: "center", fontWeight: "700", fontSize: 13 },
 });

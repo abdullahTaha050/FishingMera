@@ -1,19 +1,19 @@
 import { DynamicColorIOS, Platform, PlatformColor, type ColorValue } from "react-native";
 
-function adaptive(light: string, dark: string, androidAttribute: string): ColorValue {
+function adaptive(light: string, dark: string, ...androidResources: string[]): ColorValue {
   if (Platform.OS === "ios") return DynamicColorIOS({ light, dark });
-  if (Platform.OS === "android") return PlatformColor(androidAttribute);
+  if (Platform.OS === "android") return PlatformColor(...androidResources);
   return light;
 }
 
 export const colors = {
-  bg: adaptive("#F4F2EA", "#121815", "?attr/colorBackground"),
-  surface: adaptive("#FFFDF7", "#1C2520", "?attr/colorSurface"),
-  ink: adaptive("#18221D", "#F3F5F0", "?attr/textColorPrimary"),
-  muted: adaptive("#657069", "#ABB5AE", "?attr/textColorSecondary"),
-  border: adaptive("#D8D9CF", "#39453E", "?attr/colorControlNormal"),
-  soft: adaptive("#ECEBE3", "#28322C", "?attr/colorBackgroundFloating"),
-  banner: adaptive("#E2E7DF", "#2B3730", "?attr/colorBackgroundFloating"),
+  bg: adaptive("#F4F2EA", "#121815", "?android:attr/colorBackground", "@android:color/background_light"),
+  surface: adaptive("#FFFDF7", "#1C2520", "?android:attr/colorBackgroundFloating", "?android:attr/colorBackground", "@android:color/background_light"),
+  ink: adaptive("#18221D", "#F3F5F0", "?android:attr/textColorPrimary", "@android:color/primary_text_light"),
+  muted: adaptive("#657069", "#ABB5AE", "?android:attr/textColorSecondary", "@android:color/secondary_text_light"),
+  border: adaptive("#D8D9CF", "#39453E", "?android:attr/textColorSecondary", "@android:color/darker_gray"),
+  soft: adaptive("#ECEBE3", "#28322C", "?android:attr/colorBackgroundFloating", "?android:attr/colorBackground", "@android:color/background_light"),
+  banner: adaptive("#E2E7DF", "#2B3730", "?android:attr/colorBackgroundFloating", "?android:attr/colorBackground", "@android:color/background_light"),
   primary: "#E36B38",
   primaryDark: "#A93E18",
   moss: "#375E4C",
