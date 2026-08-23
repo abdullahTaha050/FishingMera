@@ -47,4 +47,13 @@ for (const marker of ["deleteCloudAccount", "deleteLocalAccountData", "deleteAll
   if (!profile.includes(marker)) throw new Error(`MOBILE_PRIVACY_MARKER_MISSING:${marker}`);
 }
 
+const localDb = await readFile("apps/mobile/src/db.ts", "utf8");
+for (const marker of ["CREATE TABLE IF NOT EXISTS spot_notes", "DELETE FROM spot_notes", "saveSpotNote", "recentReportsMap"]) {
+  if (!localDb.includes(marker)) throw new Error(`OFFLINE_NOTE_MARKER_MISSING:${marker}`);
+}
+const spotDetail = await readFile("apps/mobile/app/spot/[id].tsx", "utf8");
+for (const marker of ["saveSpotNote", "Kişisel not", "currentSpeedKmh", "wavePeriodS"]) {
+  if (!spotDetail.includes(marker)) throw new Error(`SPOT_DETAIL_MARKER_MISSING:${marker}`);
+}
+
 console.log(`Release preflight passed: ${requiredFiles.length} artifacts; opaque ${width}x${height} icon; EAS, PostGIS/RLS/storage, account deletion and environment contracts present.`);

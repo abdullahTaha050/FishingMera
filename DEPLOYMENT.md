@@ -34,6 +34,8 @@ The generated app icon is opaque and mask-safe; Expo's SDK 57 splash-screen conf
 
 This is the second unavoidable owner action: sign in to an Expo account for EAS, then authorize Apple/Google signing only through their official prompts. Local source and unsigned JavaScript exports do not require those accounts.
 
+For a local Android debug APK, the owner must also review and accept the Android SDK licence shown by `sdkmanager --licenses`; this repository does not auto-accept third-party legal agreements. The native project currently targets SDK 36/build-tools 36.0.0 and NDK 27.1.12297006. In the attached environment, remote EAS is preferred because local free disk is below the comfortable NDK/build headroom.
+
 ## Promotion gates
 
 - CI and database pgTAP green.

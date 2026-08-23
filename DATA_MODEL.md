@@ -29,7 +29,7 @@ PostgreSQL/PostGIS is authoritative for shared data. SQLite is authoritative for
 
 ## SQLite entities
 
-`spots`, `favorites`, `gear_profiles`, `cached_conditions`, `offline_regions`, `catch_reports`, `user_spots`, `vehicle_location`, `settings`, `sync_queue`, `analytics_events`, and `regulation_versions` are created transactionally. Server-shaped spot rows retain `server_updated_at`; pending entities retain `updated_at` and `sync_status`; global sync time is stored in `settings`.
+`spots`, `favorites`, `spot_notes`, `gear_profiles`, `cached_conditions`, `offline_regions`, `catch_reports`, `user_spots`, `vehicle_location`, `settings`, `sync_queue`, `analytics_events`, and `regulation_versions` are created transactionally. `spot_notes` is device-only personal data keyed by spot ID. Server-shaped spot rows retain `server_updated_at`; pending entities retain `updated_at` and `sync_status`; global sync time is stored in `settings`.
 
 ## Conflict policy
 
@@ -37,4 +37,4 @@ PostgreSQL/PostGIS is authoritative for shared data. SQLite is authoritative for
 - Favorites: last explicit client action wins, keyed by `(owner, spot)`.
 - Shared community spot fields: server moderation wins; conflicting client changes become a new proposal.
 - Private spots: owner last-write-wins by version, never merged into public records.
-- Vehicle position and device settings: device-only, never synced.
+- Personal spot notes, vehicle position and device settings: device-only, never synced.

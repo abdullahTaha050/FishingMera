@@ -11,11 +11,11 @@ Audit date: 23 August 2026. This file separates implemented source, automated ev
 | Offline roads, coastline, place names and mera pins | PASS — automated/source | 13,504-feature bundled GeoJSON; `npm run basemap:verify`; MapLibre layers and visible OSM/ODbL attribution |
 | GPS, heading, bearing, distance and vehicle waypoint | PASS — unit/source; DEVICE GATE for sensors | `location.ts`, `compass.tsx`, geodesy tests; physical magnetometer/GPS accuracy still unobserved |
 | Multi-gear profile, experience, fishing type, species and radius preferences | PASS — source/typecheck | onboarding/profile/store/SQLite implementations; nine configured species |
-| Deterministic recommendation, explanations and hard safety rules | PASS — automated | config/domain tests; structured factor codes; AI excluded from scoring |
+| Deterministic recommendation, explanations and hard safety rules | PASS — automated/source | config/domain tests; structured factor codes; last-90-day local report summaries feed the report factor; AI excluded from scoring |
 | Weather/marine cache, staleness and fishing-time windows | PASS — contract/source | live provider smoke test; condition cache Edge route; timestamp/staleness UI |
 | Condition snapshot attached to catch report | PASS — source; HOSTED GATE | spot-scoped condition cache and closest prior/12-hour-next association in `/sync`; requires deployed integration run |
 | Evidence-preserving server-side web discovery | PASS — static/unit; HOSTED GATE | Responses API Edge route, strict schema, source/coordinate rejection, persistence and cost circuit breakers |
-| Spot detail, sources, photos, reports, regulation and offline actions | PASS — source/export | `app/spot/[id].tsx`; versioned regulation dataset; local report/photo display |
+| Spot detail, sources, photos, reports, personal notes, full conditions, regulation and offline actions | PASS — source/export | `app/spot/[id].tsx`; local-only SQLite notes; all cached weather/marine fields; versioned regulation dataset; local report/photo display |
 | Offline photo/report/spot queues and reconnect/foreground sync | PASS — source/unit; DEVICE GATE | durable JPEG copies, EXIF removal, outbox recovery, idempotency/backoff tests; reconnect still needs real device/backend |
 | Guest mode, OTP upgrade and account deletion | PASS — source; HOSTED/EMAIL GATE | Supabase anonymous/OTP implementation, manual linking config, permanent-account RLS, storage-aware Auth deletion endpoint and local purge; hosted smoke pending |
 | Public/private/approximate coordinate privacy | PASS — static/pgTAP definition; HOSTED GATE | separate exact-coordinate table, public radius filter, RLS and 12-assertion pgTAP suite; live cross-account run pending |
@@ -26,7 +26,7 @@ Audit date: 23 August 2026. This file separates implemented source, automated ev
 | Store-ready branding/configuration | PASS — static/prebuild | opaque square icon, adaptive icon, splash, bundle/package IDs and build numbers; `npm run release:preflight` |
 | Privacy disclosure and store submission inventory | PASS — draft/source; OWNER/LEGAL GATE | in-app Turkish disclosure, owner-fielded policy draft, account deletion and platform checklists; public URL/legal identity/review pending |
 | Deployed production backend | ACCOUNT GATE — NOT PROVEN | Requires owner Supabase project/login/secrets; no hosted URL exists in this workspace |
-| Signed Android APK/AAB and iOS IPA/TestFlight build | ACCOUNT/SIGNING GATE — NOT PROVEN | Requires Expo token and platform signing authority; no signed binary exists yet |
+| Signed Android APK/AAB and iOS IPA/TestFlight build | ACCOUNT/SIGNING GATE — NOT PROVEN | Android Gradle/plugin toolchains resolve through SDK package selection, but local SDK licence/packages and Expo/platform signing remain owner-gated; no signed binary exists yet |
 | Full real-device airplane-mode/reconnect acceptance | DEVICE GATE — NOT PROVEN | Maestro flows/checklist exist, but no Android/iPhone run record exists |
 
 ## Required 23-step MVP scenario

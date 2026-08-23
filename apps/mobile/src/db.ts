@@ -1,6 +1,7 @@
 import { SEED_SPOTS, SEED_VERSION } from "@mera/seed-data";
 import { GENERAL_SEA_REGULATION_TR, REGULATION_VERSION, SPECIES_REGULATIONS } from "@mera/config";
-import type { ConditionSnapshot, GearProfile, PublicationLevel, SpeciesId, Spot, SyncQueueItem } from "@mera/types";
+import { summarizeRecentReports, type CatchReportForSummary } from "@mera/domain";
+import type { ConditionSnapshot, GearProfile, PublicationLevel, RecentReportSummary, SpeciesId, Spot, SyncQueueItem } from "@mera/types";
 import * as SQLite from "expo-sqlite";
 import type { LocalPhoto } from "./photos";
 
@@ -19,6 +20,7 @@ async function migrate(db: Database): Promise<void> {
     CREATE TABLE IF NOT EXISTS schema_migrations (version INTEGER PRIMARY KEY, applied_at TEXT NOT NULL);
     CREATE TABLE IF NOT EXISTS spots (id TEXT PRIMARY KEY, payload TEXT NOT NULL, server_updated_at TEXT, downloaded_at TEXT NOT NULL);
     CREATE TABLE IF NOT EXISTS favorites (spot_id TEXT PRIMARY KEY, updated_at TEXT NOT NULL, pending_sync INTEGER NOT NULL DEFAULT 0);
+    CREATE TABLE IF NOT EXISTS spot_notes (spot_id TEXT PRIMARY KEY, note TEXT NOT NULL, updated_at TEXT NOT NULL);
     CREATE TABLE IF NOT EXISTS gear_profiles (id TEXT PRIMARY KEY, payload TEXT NOT NULL, updated_at TEXT NOT NULL, pending_sync INTEGER NOT NULL DEFAULT 0);
     CREATE TABLE IF NOT EXISTS cached_conditions (spot_id TEXT PRIMARY KEY, payload TEXT NOT NULL, fetched_at TEXT NOT NULL, expires_at TEXT NOT NULL);
     CREATE TABLE IF NOT EXISTS offline_regions (id TEXT PRIMARY KEY, name TEXT NOT NULL, pack_id TEXT, state TEXT NOT NULL, progress REAL NOT NULL DEFAULT 0, style_url TEXT, bounds_json TEXT NOT NULL, package_version TEXT, checksum TEXT, updated_at TEXT NOT NULL);
@@ -31,6 +33,7 @@ async function migrate(db: Database): Promise<void> {
     CREATE TABLE IF NOT EXISTS regulation_versions (id TEXT PRIMARY KEY, payload TEXT NOT NULL, checked_at TEXT NOT NULL, effective_to TEXT NOT NULL);
     CREATE INDEX IF NOT EXISTS sync_queue_due_idx ON sync_queue(state, next_attempt_at);
     INSERT OR IGNORE INTO schema_migrations(version, applied_at) VALUES (1, datetime('now'));
+    INSERT OR IGNORE INTO schema_migrations(version, applied_at) VALUES (2, datetime('now'));
     UPDATE sync_queue SET state='PENDING',next_attempt_at=datetime('now'),last_error='RECOVERED_AFTER_RESTART' WHERE state='PROCESSING';
   `);
 }
@@ -78,6 +81,24 @@ export async function setFavorite(db: Database, spotId: string, favorite: boolea
     await enqueue(db, "FAVORITE", spotId, favorite ? "UPSERT" : "DELETE", { spotId, favorite });
     await trackEvent(db, "spot_saved", { favorite });
   });
+}
+
+export async function getSpotNote(db: Database, spotId: string): Promise<string> {
+  return (await db.getFirstAsync<{ note: string }>("SELECT note FROM spot_notes WHERE spot_id = ?", spotId))?.note ?? "";
+}
+
+export async function saveSpotNote(db: Database, spotId: string, note: string): Promise<void> {
+  const normalized = note.trim();
+  if (!normalized) {
+    await db.runAsync("DELETE FROM spot_notes WHERE spot_id = ?", spotId);
+    return;
+  }
+  await db.runAsync(
+    "INSERT INTO spot_notes(spot_id,note,updated_at) VALUES(?,?,?) ON CONFLICT(spot_id) DO UPDATE SET note=excluded.note,updated_at=excluded.updated_at",
+    spotId,
+    normalized,
+    new Date().toISOString()
+  );
 }
 
 export async function saveGear(db: Database, gear: GearProfile): Promise<void> {
@@ -210,6 +231,18 @@ export async function listCatchReportsForSpot(db: Database, spotId: string, limi
   return (await listCatchReports(db)).filter((report) => report.payload.spotId === spotId).slice(0, limit);
 }
 
+export async function recentReportsMap(db: Database, speciesId: SpeciesId, now = new Date()): Promise<Map<string, RecentReportSummary>> {
+  const reports = (await listCatchReports(db)).map((report): CatchReportForSummary => ({
+    spotId: typeof report.payload.spotId === "string" ? report.payload.spotId : undefined,
+    startedAt: typeof report.payload.startedAt === "string" ? report.payload.startedAt : report.createdAt,
+    targetSpecies: typeof report.payload.targetSpecies === "string" ? report.payload.targetSpecies : undefined,
+    caughtSpecies: Array.isArray(report.payload.caughtSpecies) ? (report.payload.caughtSpecies as { speciesId?: string }[]) : undefined,
+    quantity: typeof report.payload.quantity === "number" ? report.payload.quantity : undefined,
+    result: typeof report.payload.result === "string" ? report.payload.result : undefined
+  }));
+  return summarizeRecentReports(reports, speciesId, now);
+}
+
 async function enqueue(db: Database, entityType: SyncQueueItem["entityType"], entityId: string, operation: SyncQueueItem["operation"], payload: Record<string, unknown>): Promise<void> {
   const id = globalThis.crypto.randomUUID();
   const now = new Date().toISOString();
@@ -236,6 +269,7 @@ export async function deleteLocalAccountData(db: Database): Promise<void> {
       DELETE FROM user_spots;
       DELETE FROM catch_reports;
       DELETE FROM favorites;
+      DELETE FROM spot_notes;
       DELETE FROM gear_profiles;
       DELETE FROM sync_queue;
       DELETE FROM analytics_events;

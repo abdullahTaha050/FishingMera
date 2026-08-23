@@ -1,11 +1,11 @@
 import { rankRecommendations } from "@mera/domain";
-import type { ConditionSnapshot, RecommendationResult } from "@mera/types";
+import type { ConditionSnapshot, RecentReportSummary, RecommendationResult } from "@mera/types";
 import { router } from "expo-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Alert, Linking, ScrollView, StyleSheet, Text, View } from "react-native";
 import { discoverMoreSpots, fetchConditions, type DiscoveryCandidate } from "@/api";
 import { Button, Card, Label, Loading, Screen } from "@/components";
-import { cacheCondition, conditionsMap, trackEvent } from "@/db";
+import { cacheCondition, conditionsMap, recentReportsMap, trackEvent } from "@/db";
 import { HENDEK_DEMO_LOCATION, useCurrentLocation } from "@/location";
 import { downloadOfflineRegion, SAKARYA_NORTH_BOUNDS } from "@/map";
 import { useAppState } from "@/store";
@@ -19,22 +19,27 @@ const reasonText: Record<string, string> = {
   GEAR_GOOD_MATCH: "Seçili takımın başlangıç kural setiyle uyumlu.",
   NO_MODEL_RISK_FLAG: "Mevcut veride hard risk kuralı tetiklenmedi; yerel koşulları yine kontrol et.",
   ACCESS_UNKNOWN: "Erişim bilgisi bilinmiyor.",
-  PROHIBITION_UNKNOWN: "Güncel yasak/izin durumu doğrulanmadı."
+  PROHIBITION_UNKNOWN: "Güncel yasak/izin durumu doğrulanmadı.",
+  RECENT_REPORTS_AVAILABLE: "Son 90 gündeki cihaz raporların hedef tür için hesaba katıldı.",
+  RECENT_REPORTS_MISSING: "Hedef tür için yakın tarihli cihaz raporu yok."
 };
+const verificationText: Record<RecommendationResult["spot"]["verificationStatus"], string> = { VERIFIED: "Doğrulanmış", COMMUNITY: "Topluluk", WEB_DISCOVERED: "Web keşfi", POTENTIAL: "Potansiyel · doğrulanmadı" };
 
 export default function RecommendationsScreen() {
   const state = useAppState();
   const location = useCurrentLocation();
   const [conditionBySpot, setConditionBySpot] = useState<Map<string, ConditionSnapshot>>(new Map());
+  const [reportsBySpot, setReportsBySpot] = useState<Map<string, RecentReportSummary>>(new Map());
   const [refreshing, setRefreshing] = useState(false);
   const [discovering, setDiscovering] = useState(false);
   const [discovered, setDiscovered] = useState<DiscoveryCandidate[]>([]);
   const fetchedKey = useRef("");
   const autoDiscoveryKey = useRef("");
   useEffect(() => { if (state.db) conditionsMap(state.db).then(setConditionBySpot); }, [state.db]);
+  useEffect(() => { if (state.db) recentReportsMap(state.db, state.targetSpecies).then(setReportsBySpot); }, [state.db, state.targetSpecies]);
   useEffect(() => { if (state.db) void trackEvent(state.db, "recommendation_requested", { radiusKm: state.maxDistanceKm, targetSpecies: state.targetSpecies }); }, [state.db, state.maxDistanceKm, state.targetSpecies]);
   const coordinates = location.coordinates ?? HENDEK_DEMO_LOCATION;
-  const results = useMemo(() => state.fishingType === "SHORE" ? rankRecommendations(state.spots, { userCoordinates: coordinates, experience: state.experience, targetSpecies: state.targetSpecies, gear: state.gear ?? undefined, maxDistanceKm: state.maxDistanceKm, now: new Date().toISOString() }, conditionBySpot, new Map()) : [], [state.spots, coordinates, state.experience, state.fishingType, state.targetSpecies, state.gear, state.maxDistanceKm, conditionBySpot]);
+  const results = useMemo(() => state.fishingType === "SHORE" ? rankRecommendations(state.spots, { userCoordinates: coordinates, experience: state.experience, targetSpecies: state.targetSpecies, gear: state.gear ?? undefined, maxDistanceKm: state.maxDistanceKm, now: new Date().toISOString() }, conditionBySpot, reportsBySpot) : [], [state.spots, coordinates, state.experience, state.fishingType, state.targetSpecies, state.gear, state.maxDistanceKm, conditionBySpot, reportsBySpot]);
 
   useEffect(() => {
     const key = `${state.targetSpecies}:${state.maxDistanceKm}:${coordinates.latitude.toFixed(3)}:${coordinates.longitude.toFixed(3)}`;
@@ -94,7 +99,7 @@ function ResultCard({ result, condition, onOpen, onMap, onOffline }: { result: R
   const bestWindow = condition?.sunrise ? `${new Date(condition.sunrise).toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" })} sonrası yaklaşık 3 saat` : "Koşul verisi gelince hesaplanır";
   return <Card><View style={styles.topRow}><View style={{ flex: 1 }}><Text style={styles.name}>{result.spot.canonicalName}</Text><Text style={styles.subtle}>{result.spot.district} · Kuş uçuşu {result.straightLineDistanceKm} km</Text></View><View style={[styles.score, !result.safety.allowed && styles.scoreRisk]}><Text style={styles.scoreText}>{result.score}</Text><Text style={styles.scoreOut}>/100</Text></View></View>
     <Text style={result.safety.allowed ? styles.good : styles.risk}>{result.safety.allowed ? "Bugün sana göre değerlendirilebilir" : "Risk kuralı nedeniyle üst sıralara alınmadı"}</Text>
-    <View style={styles.metrics}><Text style={styles.metric}>{result.spot.verificationStatus === "POTENTIAL" ? "Potansiyel · doğrulanmadı" : result.spot.verificationStatus === "COMMUNITY" ? "Topluluk" : "Web keşfi"}</Text><Text style={styles.metric}>{conditionFactor?.reasonCode === "CONDITIONS_MISSING" ? "Koşul verisi yok" : `Dalga ${condition?.waveHeightM ?? "—"} m · Rüzgâr ${condition?.windSpeedKmh ?? "—"} km/s`}</Text><Text style={styles.metric}>Acemi: {result.spot.beginnerSuitability}</Text><Text style={styles.metric}>Takım: {gearFactor?.reasonCode === "GEAR_GOOD_MATCH" ? "Uygun" : "Kontrol et"}</Text></View>
+    <View style={styles.metrics}><Text style={styles.metric}>{verificationText[result.spot.verificationStatus]}</Text><Text style={styles.metric}>{conditionFactor?.reasonCode === "CONDITIONS_MISSING" ? "Koşul verisi yok" : `Dalga ${condition?.waveHeightM ?? "—"} m · Rüzgâr ${condition?.windSpeedKmh ?? "—"} km/s`}</Text><Text style={styles.metric}>Acemi: {result.spot.beginnerSuitability}</Text><Text style={styles.metric}>Takım: {gearFactor?.reasonCode === "GEAR_GOOD_MATCH" ? "Uygun" : "Kontrol et"}</Text></View>
     <Text style={styles.subtle}>En uygun tahmini zaman: {bestWindow}</Text>
     <Label>Neden?</Label>{result.explanationCodes.slice(0, 4).map((code) => <Text key={code} style={styles.reason}>• {reasonText[code] ?? code.replaceAll("_", " ").toLocaleLowerCase("tr-TR")}</Text>)}
     <View style={styles.actions}><Button title="Detay" variant="secondary" onPress={onOpen} /><Button title="Haritada gör" variant="secondary" onPress={onMap} /><Button title="Offline indir" variant="secondary" onPress={onOffline} /></View>

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { compassLabelTr, haversineDistanceKm, initialBearingDegrees, isRetryableStatus, likelySameSpot, matchGear, nameSimilarity, rankRecommendations, recommendSpot, retryDelayMs, stalenessLabelTr } from "../src";
+import { compassLabelTr, haversineDistanceKm, initialBearingDegrees, isRetryableStatus, likelySameSpot, matchGear, nameSimilarity, rankRecommendations, recommendSpot, retryDelayMs, stalenessLabelTr, summarizeRecentReports } from "../src";
 import { conditions, gear, spot } from "./fixtures";
 
 const input = {
@@ -50,6 +50,16 @@ describe("recommendation", () => {
     const risky = { ...spot, id: "risky", prohibitedStatus: "PROHIBITED" as const };
     const results = rankRecommendations([far, risky, spot], input, new Map([[spot.id, conditions], [risky.id, conditions]]), new Map());
     expect(results.map((entry) => entry.spot.id)).toEqual([spot.id, risky.id]);
+  });
+
+  it("summarizes only recent target-species reports for scoring", () => {
+    const summaries = summarizeRecentReports([
+      { spotId: spot.id, startedAt: "2026-08-20T06:00:00Z", targetSpecies: "ISTAVRIT", quantity: 2, result: "GOOD" },
+      { spotId: spot.id, startedAt: "2026-08-19T06:00:00Z", targetSpecies: "ISTAVRIT", quantity: 0, result: "NONE" },
+      { spotId: spot.id, startedAt: "2026-01-01T06:00:00Z", targetSpecies: "ISTAVRIT", quantity: 5, result: "GOOD" },
+      { spotId: spot.id, startedAt: "2026-08-21T06:00:00Z", targetSpecies: "LUFER", quantity: 1, result: "GOOD" }
+    ], "ISTAVRIT", new Date(input.now));
+    expect(summaries.get(spot.id)).toEqual({ speciesId: "ISTAVRIT", reportCount: 2, positiveCount: 1, lastReportedAt: "2026-08-20T06:00:00Z" });
   });
 });
 

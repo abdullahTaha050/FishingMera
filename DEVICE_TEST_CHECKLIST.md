@@ -11,6 +11,7 @@ The `.maestro/offline-core.yaml` and `.maestro/offline-catch.yaml` flows automat
 - [ ] 100 km İstavrit recommendation returns deterministic ranked results.
 - [ ] Each card shows score factors, straight-line distance and data age.
 - [ ] Spot can be favorited and remains after force-close/restart.
+- [ ] A personal spot note can be saved, edited, deleted and remains readable offline after force-close/restart.
 - [ ] Sakarya North Coast offline region completes and remains after restart.
 - [ ] With airplane mode, offline map, pins and GPS marker remain visible.
 - [ ] Compass shows bearing, distance and GPS accuracy; route disclaimer visible.

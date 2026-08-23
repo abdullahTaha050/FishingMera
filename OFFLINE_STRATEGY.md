@@ -18,6 +18,8 @@ Every offline-capable mutation performs one SQLite transaction:
 
 The sync worker runs at launch, foreground, network reconnection and manual retry. It claims due rows, sends batches, marks acknowledgements, and applies exponential backoff with jitter. Permanent validation/auth failures move to `blocked`; transient failures return to `pending`. Queue rows are never deleted before a server acknowledgement.
 
+Per-spot personal notes and the vehicle waypoint are deliberately device-only. They remain readable after restart without a network, are never placed in the sync queue, and are removed by the in-app personal-data deletion flow.
+
 ## Offline regions
 
 The baseline region needs no download: MapLibre renders the embedded ODbL-1.0 extract with visible OpenStreetMap attribution. `npm run basemap:verify` checks its feature coverage, licence metadata and SHA-256 (`729171b…d4a590`). `npm run basemap:build` can regenerate it from one Overpass data query; the app never bulk-downloads public OSM raster tiles.

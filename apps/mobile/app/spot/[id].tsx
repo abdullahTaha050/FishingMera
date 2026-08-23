@@ -4,9 +4,9 @@ import { evaluateSafety, haversineDistanceKm, matchGear, stalenessLabelTr } from
 import type { ConditionSnapshot, Spot } from "@mera/types";
 import { router, useLocalSearchParams } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
-import { Alert, Image, Linking, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Alert, Image, Linking, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { Button, Card, Label, Loading, Screen, Title } from "@/components";
-import { conditionsMap, getSpot, listCatchReportsForSpot, saveFeedback, trackEvent } from "@/db";
+import { conditionsMap, getSpot, getSpotNote, listCatchReportsForSpot, saveFeedback, saveSpotNote, trackEvent } from "@/db";
 import { useCurrentLocation } from "@/location";
 import { downloadOfflineRegion, fallbackMapStyle, SAKARYA_NORTH_BOUNDS } from "@/map";
 import { BundledBasemapLayers } from "@/mapLayers";
@@ -29,6 +29,8 @@ export default function SpotDetailScreen() {
   const [spot, setSpot] = useState<Spot | null>(null);
   const [condition, setCondition] = useState<ConditionSnapshot | null>(null);
   const [reports, setReports] = useState<LocalReport[]>([]);
+  const [personalNote, setPersonalNote] = useState("");
+  const [savedPersonalNote, setSavedPersonalNote] = useState("");
   const [progress, setProgress] = useState<number | null>(null);
 
   useEffect(() => {
@@ -36,6 +38,7 @@ export default function SpotDetailScreen() {
     void getSpot(state.db, id).then(setSpot);
     void conditionsMap(state.db).then((map) => setCondition(map.get(id) ?? null));
     void listCatchReportsForSpot(state.db, id).then(setReports);
+    void getSpotNote(state.db, id).then((note) => { setPersonalNote(note); setSavedPersonalNote(note); });
     void trackEvent(state.db, "spot_opened", { verification: "local" });
   }, [state.db, id]);
 
@@ -67,6 +70,15 @@ export default function SpotDetailScreen() {
     Alert.alert("Teşekkürler", "Geri bildirimin kuyruğa alındı. Tek rapor noktayı doğrulanmış veya yasak ilan etmez.");
   }
 
+  async function persistPersonalNote() {
+    if (!state.db) return;
+    await saveSpotNote(state.db, spotId, personalNote);
+    const normalized = personalNote.trim();
+    setPersonalNote(normalized);
+    setSavedPersonalNote(normalized);
+    Alert.alert(normalized ? "Not kaydedildi" : "Not silindi", "Kişisel not yalnızca bu cihazda tutulur ve internetsiz açılır.");
+  }
+
   return <Screen><ScrollView contentContainerStyle={styles.content}>
     <View><Label>{verificationLabels[spot.verificationStatus]}</Label><Title>{spot.canonicalName}</Title><Text style={styles.subtle}>{spot.district}, {spot.province} · {spot.coordinatePrecision === "APPROXIMATE" ? "yaklaşık " : ""}{spot.coordinates.latitude.toFixed(5)}, {spot.coordinates.longitude.toFixed(5)}</Text></View>
     {spot.verificationStatus === "POTENTIAL" && <Card><Text style={styles.warning}>Coğrafi yapısı nedeniyle potansiyel kıyı av noktası. Henüz doğrulanmadı.</Text></Card>}
@@ -78,10 +90,12 @@ export default function SpotDetailScreen() {
 
     <Card><Label>Mera özeti</Label><Text style={styles.value}>Hedef türler: {speciesNames}</Text><Text style={styles.subtle}>{spot.coastlineType} · erişim {spot.accessType} · acemi uygunluğu {spot.beginnerSuitability}</Text><Text style={styles.subtle}>{spot.terrain}</Text><Text style={styles.subtle}>Park: {spot.parkingNotes ?? "Bilinmiyor"}</Text><Text style={styles.subtle}>Yürüme: {spot.walkingDistanceM !== undefined ? `${spot.walkingDistanceM} m` : "Bilinmiyor"}</Text><Text style={styles.subtle}>Güven skoru: %{Math.round(spot.confidenceScore * 100)}; geri bildirimlerle küçük adımlarla güncellenir.</Text></Card>
 
+    <Card><Label>Kişisel not · yalnız bu cihaz</Label><TextInput style={[styles.input, styles.multiline]} value={personalNote} onChangeText={setPersonalNote} multiline maxLength={2000} placeholder="Erişim, park, yem veya kendi gözlemlerin" placeholderTextColor={colors.muted} /><Text style={styles.subtle}>Cloud’a gönderilmez; SQLite içinde çevrimdışı saklanır.</Text><Button title={personalNote.trim() ? "Notu kaydet" : "Notu sil"} variant="secondary" disabled={personalNote.trim() === savedPersonalNote} onPress={persistPersonalNote} /></Card>
+
     {spot.photoPaths && spot.photoPaths.length > 0 && <Card><Label>Fotoğraflar</Label><ScrollView horizontal contentContainerStyle={styles.photos}>{spot.photoPaths.filter((path) => path.startsWith("file:") || path.startsWith("content:")).map((path) => <Image key={path} source={{ uri: path }} style={styles.photo} />)}</ScrollView><Text style={styles.subtle}>Cloud fotoğrafları özel depoda tutulur; bu sürüm yalnızca cihazdaki kopyaları gösterir.</Text></Card>}
 
     <Card><Label>Bilinen riskler / uyarılar</Label>{[...spot.knownHazards, ...spot.accessWarnings].map((item) => <Text key={item} style={styles.warning}>• {item}</Text>)}<Text style={styles.disclaimer}>Bu uygulama güvenli rota veya deniz güvenliği garantisi vermez. Yerel koşulları ve resmî kısıtları kontrol et.</Text></Card>
-    <Card><Label>Hava ve deniz</Label>{condition ? <><Text style={styles.value}>Dalga {condition.waveHeightM ?? "—"} m · Rüzgâr {condition.windSpeedKmh ?? "—"} km/s · Hamle {condition.windGustKmh ?? "—"} km/s</Text><Text style={styles.subtle}>{stalenessLabelTr(condition.fetchedAt)}</Text>{safety.severity === "CAUTION" && <Text style={styles.warning}>Dikkat: {safety.reasonCodes.join(", ")}</Text>}</> : <Text style={styles.warning}>Güncel koşul verisi yok. Uygulama eski veriyi güncelmiş gibi göstermiyor.</Text>}</Card>
+    <Card><Label>Hava ve deniz</Label>{condition ? <><Text style={styles.value}>Hava {condition.airTemperatureC ?? "—"} °C · Yağış {condition.precipitationMm ?? "—"} mm</Text><Text style={styles.subtle}>Rüzgâr {condition.windSpeedKmh ?? "—"} km/s · yön {degrees(condition.windDirectionDeg)} · hamle {condition.windGustKmh ?? "—"} km/s</Text><Text style={styles.subtle}>Dalga {condition.waveHeightM ?? "—"} m · yön {degrees(condition.waveDirectionDeg)} · periyot {condition.wavePeriodS ?? "—"} sn · swell {condition.swellHeightM ?? "—"} m</Text><Text style={styles.subtle}>Deniz yüzeyi {condition.seaSurfaceTemperatureC ?? "—"} °C · akıntı {condition.currentSpeedKmh ?? "—"} km/s · yön {degrees(condition.currentDirectionDeg)}</Text><Text style={styles.subtle}>{stalenessLabelTr(condition.fetchedAt)} · gözlem {new Date(condition.observedAt).toLocaleString("tr-TR")}</Text>{safety.severity === "CAUTION" && <Text style={styles.warning}>Dikkat: {safety.reasonCodes.join(", ")}</Text>}</> : <Text style={styles.warning}>Güncel koşul verisi yok. Uygulama eski veriyi güncelmiş gibi göstermiyor.</Text>}</Card>
     <Card><Label>Bugün için uygunluk pencereleri</Label><Text style={styles.value}>{condition?.sunrise ? `${formatTime(condition.sunrise)}–${formatTime(new Date(new Date(condition.sunrise).getTime() + 3 * 3_600_000).toISOString())} · daha uygun` : "Gün doğumu çevresi — veri gelince hesaplanır"}</Text><Text style={styles.value}>{condition?.sunset ? `${formatTime(new Date(new Date(condition.sunset).getTime() - 3 * 3_600_000).toISOString())}–${formatTime(condition.sunset)} · orta` : "Gün batımı çevresi — veri gelince hesaplanır"}</Text><Text style={styles.subtle}>Tahmini değerlendirmedir; av garantisi değildir.</Text></Card>
     {gearRule && <Card><Label>Takım uyumu</Label><Text style={styles.value}>{gearMatch.reasonCode === "GEAR_GOOD_MATCH" ? "Seçili takım iyi eşleşiyor" : gearMatch.reasonCode === "GEAR_POOR_MATCH" ? "Seçili takım zayıf eşleşiyor" : "Takım uyumu sınırlı veriden değerlendirildi"}</Text><Text style={styles.subtle}>{gearRule.suggestionTr}</Text><Text style={styles.subtle}>Yapılandırılmış kural veritabanından; yapay zekâ gramaj üretmez.</Text></Card>}
 
@@ -95,5 +109,6 @@ export default function SpotDetailScreen() {
 }
 
 function formatTime(value: string) { return new Date(value).toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" }); }
+function degrees(value?: number) { return value === undefined ? "—" : `${Math.round(value)}°`; }
 
-const styles = StyleSheet.create({ content: { padding: spacing.md, gap: spacing.md, paddingBottom: 80 }, subtle: { color: colors.muted, lineHeight: 20 }, value: { color: colors.ink, fontSize: 17, fontWeight: "800", lineHeight: 24 }, warning: { color: colors.warning, lineHeight: 21, fontWeight: "700" }, danger: { color: colors.danger, lineHeight: 21, fontWeight: "900" }, disclaimer: { color: colors.danger, lineHeight: 20, fontWeight: "800", marginTop: spacing.sm }, actions: { gap: spacing.sm }, link: { color: colors.water, lineHeight: 22, textDecorationLine: "underline" }, mapWrap: { height: 210, borderRadius: 14, overflow: "hidden", borderWidth: 1, borderColor: colors.border }, map: { flex: 1 }, photos: { gap: spacing.sm }, photo: { width: 220, height: 160, borderRadius: 12, backgroundColor: colors.border }, report: { borderTopWidth: 1, borderTopColor: colors.border, paddingTop: spacing.sm, gap: 2 } });
+const styles = StyleSheet.create({ content: { padding: spacing.md, gap: spacing.md, paddingBottom: 80 }, subtle: { color: colors.muted, lineHeight: 20 }, value: { color: colors.ink, fontSize: 17, fontWeight: "800", lineHeight: 24 }, warning: { color: colors.warning, lineHeight: 21, fontWeight: "700" }, danger: { color: colors.danger, lineHeight: 21, fontWeight: "900" }, disclaimer: { color: colors.danger, lineHeight: 20, fontWeight: "800", marginTop: spacing.sm }, actions: { gap: spacing.sm }, link: { color: colors.water, lineHeight: 22, textDecorationLine: "underline" }, mapWrap: { height: 210, borderRadius: 14, overflow: "hidden", borderWidth: 1, borderColor: colors.border }, map: { flex: 1 }, photos: { gap: spacing.sm }, photo: { width: 220, height: 160, borderRadius: 12, backgroundColor: colors.border }, report: { borderTopWidth: 1, borderTopColor: colors.border, paddingTop: spacing.sm, gap: 2 }, input: { minHeight: 48, borderWidth: 1, borderColor: colors.border, borderRadius: 12, color: colors.ink, paddingHorizontal: 12, paddingVertical: 10, backgroundColor: colors.bg }, multiline: { minHeight: 100, textAlignVertical: "top" } });

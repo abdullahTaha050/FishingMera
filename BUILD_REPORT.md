@@ -6,7 +6,7 @@ Checked on 23 August 2026 at commit working tree for Mera 0.1.0.
 
 - ESLint: zero errors and zero warnings.
 - TypeScript: all five workspaces plus the Expo application pass strict checking.
-- Automated tests: 21 passed (19 configuration/domain/seed tests plus 2 Deno confidence-delta tests).
+- Automated tests: 22 passed (20 configuration/domain/seed tests plus 2 Deno confidence-delta tests). The added domain test proves that only recent, target-species catch reports feed the recommendation report factor.
 - PostgreSQL migration: parsed successfully; 12-assertion pgTAP suite contains spatial, privacy, permanent-account, storage, account-cascade, discovery-lock and regulation checks.
 - Edge Function: Deno formatting, static checking and tests pass; structured route/latency/cache/provider logs omit sensitive request data.
 - Embedded offline basemap: 13,504 road/coast/place features, attribution/licence metadata and SHA-256 all pass reproducible verification.
@@ -21,7 +21,7 @@ Checked on 23 August 2026 at commit working tree for Mera 0.1.0.
 
 ## Not executable in the attached environment
 
-- Android APK/AAB native compilation: Android SDK is not installed.
+- Android native compilation: Google's official ARM command-line tools 22.0 were checksum-verified and installed in the project-only temporary area. Gradle 9.3.1, Expo/React Native plugins and the required JDK 17 toolchain resolve. The build identifies compile/target SDK 36, build-tools 36.0.0 and NDK 27.1.12297006, but those packages cannot be installed until the project owner reviews and accepts the Google Android SDK license. Only 3.4 GiB remains locally, so a remote EAS build is still the safer signed-build path after Expo linking.
 - iOS native compilation/simulator: pod integration passes, but Xcode 26.6 fails before compiling application code because `IDESimulatorFoundation` cannot load a required `DVTDownloads` symbol. Xcode explicitly requests `xcodebuild -runFirstLaunch`; repairing/updating this machine's Xcode installation requires owner/admin action.
 - Local Supabase migration/pgTAP execution: Docker CLI exists but the daemon is unavailable. CI is configured to run `supabase db start` and `supabase test db` on Linux.
 - Physical-device acceptance: no iPhone or Android phone is attached. Two Maestro offline flows are included but cannot replace the unrun sensor/privacy/device matrix.
