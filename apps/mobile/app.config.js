@@ -1,6 +1,5 @@
-import type { ExpoConfig } from "expo/config";
-
-const config: ExpoConfig = {
+/** @type {import("expo/config").ExpoConfig} */
+const config = {
   name: "Mera",
   slug: "mera",
   scheme: "mera",
@@ -42,8 +41,8 @@ const config: ExpoConfig = {
   extra: {
     mapStyleUrl: process.env.EXPO_PUBLIC_MAP_STYLE_URL ?? null,
     supabaseUrl: process.env.EXPO_PUBLIC_SUPABASE_URL ?? null,
-    eas: process.env.EAS_PROJECT_ID ? { projectId: process.env.EAS_PROJECT_ID } : undefined
+    eas: { projectId: process.env.EAS_PROJECT_ID ?? "99fbc2dc-a277-4d86-bc1a-38c33bd2510d" }
   }
 };
 
-export default config;
+module.exports = config;
