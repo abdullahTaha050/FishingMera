@@ -84,3 +84,23 @@ export async function verifyExistingAccountOtp(email: string, token: string): Pr
   if (result.error) throw result.error;
   return accountStatus();
 }
+
+export async function deleteCloudAccount(): Promise<void> {
+  const supabase = client();
+  const base = process.env.EXPO_PUBLIC_SUPABASE_URL;
+  const anonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
+  if (!supabase || !base || !anonKey) throw new Error("BACKEND_NOT_CONFIGURED");
+  const session = await supabase.auth.getSession();
+  const accessToken = session.data.session?.access_token;
+  if (!accessToken) throw new Error("AUTH_REQUIRED");
+  const result = await fetch(`${base}/functions/v1/api/account/delete`, {
+    method: "POST",
+    headers: { apikey: anonKey, authorization: `Bearer ${accessToken}`, "content-type": "application/json" },
+    body: JSON.stringify({ confirmation: "HESABIMI SIL" })
+  });
+  if (!result.ok) {
+    const body = await result.json().catch(() => ({})) as { code?: string };
+    throw new Error(body.code ?? `ACCOUNT_DELETE_HTTP_${result.status}`);
+  }
+  await supabase.auth.signOut({ scope: "local" });
+}

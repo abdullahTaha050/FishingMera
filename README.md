@@ -28,7 +28,7 @@ packages/seed-data   Bundled regional data and provenance
 supabase             PostGIS migration, pgTAP and Edge Function API
 ```
 
-Read [ARCHITECTURE.md](./ARCHITECTURE.md), [OFFLINE_STRATEGY.md](./OFFLINE_STRATEGY.md), [DATA_MODEL.md](./DATA_MODEL.md), [COSTS.md](./COSTS.md), [SEED_DATA.md](./SEED_DATA.md), [REGULATIONS.md](./REGULATIONS.md), [SECURITY.md](./SECURITY.md), and [BUILD_REPORT.md](./BUILD_REPORT.md) before changing platform boundaries.
+Read [ARCHITECTURE.md](./ARCHITECTURE.md), [OFFLINE_STRATEGY.md](./OFFLINE_STRATEGY.md), [DATA_MODEL.md](./DATA_MODEL.md), [COSTS.md](./COSTS.md), [SEED_DATA.md](./SEED_DATA.md), [REGULATIONS.md](./REGULATIONS.md), [SECURITY.md](./SECURITY.md), [PRIVACY_POLICY_TR.md](./PRIVACY_POLICY_TR.md), [STORE_RELEASE_CHECKLIST.md](./STORE_RELEASE_CHECKLIST.md), [BUILD_REPORT.md](./BUILD_REPORT.md), and [RELEASE_AUDIT.md](./RELEASE_AUDIT.md) before changing platform boundaries or claiming completion.
 
 ## Local setup
 

@@ -13,7 +13,7 @@ Screens read SQLite first. Network refreshes write a new coherent snapshot to SQ
 Every offline-capable mutation performs one SQLite transaction:
 
 1. write/update the local entity;
-2. append a `sync_queue` row with client UUID, operation kind, payload, entity version and idempotency key;
+2. append a `sync_queue` row with client UUID, operation kind, payload and unique idempotency key;
 3. commit and update UI.
 
 The sync worker runs at launch, foreground, network reconnection and manual retry. It claims due rows, sends batches, marks acknowledgements, and applies exponential backoff with jitter. Permanent validation/auth failures move to `blocked`; transient failures return to `pending`. Queue rows are never deleted before a server acknowledgement.

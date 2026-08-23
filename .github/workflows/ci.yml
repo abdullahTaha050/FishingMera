@@ -23,6 +23,7 @@ jobs:
       - run: npm test
       - run: npm run db:parse
       - run: npm run basemap:verify
+      - run: npm run release:preflight
       - run: npx expo-doctor
         working-directory: apps/mobile
       - run: npm run mobile:export

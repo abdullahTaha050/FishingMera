@@ -229,6 +229,23 @@ export async function retryBlockedAccountItems(db: Database): Promise<void> {
   );
 }
 
+export async function deleteLocalAccountData(db: Database): Promise<void> {
+  await db.withTransactionAsync(async () => {
+    await db.execAsync(`
+      DELETE FROM spots WHERE id IN (SELECT id FROM user_spots);
+      DELETE FROM user_spots;
+      DELETE FROM catch_reports;
+      DELETE FROM favorites;
+      DELETE FROM gear_profiles;
+      DELETE FROM sync_queue;
+      DELETE FROM analytics_events;
+      DELETE FROM cached_conditions;
+      DELETE FROM vehicle_location;
+      DELETE FROM settings;
+    `);
+  });
+}
+
 export async function getSetting(db: Database, key: string): Promise<string | null> {
   return (await db.getFirstAsync<{ value: string }>("SELECT value FROM settings WHERE key = ?", key))?.value ?? null;
 }

@@ -25,6 +25,7 @@ The `.maestro/offline-core.yaml` and `.maestro/offline-catch.yaml` flows automat
 - [ ] Approximate spot never exposes its exact coordinate.
 - [ ] New private spot created offline appears locally and syncs once without public coordinate exposure.
 - [ ] Guest account upgrades with a 6-digit email OTP without changing ownership; another device can sign in by OTP.
+- [ ] Account deletion rejects an incorrect confirmation; exact confirmation removes cloud Auth/data/photos and local personal data, then the deleted OTP account cannot sign in.
 - [ ] Anonymous user cannot publish a public/approximate spot or public catch report.
 - [ ] “Daha fazla mera ara” labels web candidates as unverified and opens every cited source.
 - [ ] Regulation card shows version/check date and remains available in airplane mode.

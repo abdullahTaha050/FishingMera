@@ -45,7 +45,7 @@ create table public.species (
 
 create table public.spots (
   id uuid primary key,
-  owner_id uuid references auth.users(id) on delete set null,
+  owner_id uuid references auth.users(id) on delete cascade,
   canonical_name text not null check (char_length(canonical_name) between 1 and 160),
   local_names text[] not null default '{}',
   location extensions.geography(point, 4326),

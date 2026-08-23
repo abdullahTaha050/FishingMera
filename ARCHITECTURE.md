@@ -17,7 +17,8 @@ Mobile (Expo/React Native)
   UI / Expo Router
   Recommendation domain package (deterministic)
   SQLite + outbox sync queue
-  MapLibre native offline packs
+  MapLibre + embedded ODbL road/coast/place GeoJSON
+  Optional Mera-controlled native offline packs
   GPS + magnetometer + vehicle waypoint
         |
         | HTTPS, JWT, idempotency keys
@@ -45,9 +46,9 @@ Supabase Edge Function API
 
 ## Offline map decision
 
-MapLibre `OfflineManager` downloads a bounded style region and its resources. Public `tile.openstreetmap.org` is prohibited: the [OSMF tile policy](https://operations.osmfoundation.org/policies/tiles/) explicitly forbids prefetch and offline packs. Production styles therefore point only to Mera-hosted vector tiles built from OSM data and stored behind an offline-permitted endpoint. Attribution remains visible.
+The baseline map is a release-built, checksum-pinned GeoJSON extract with 13,504 OSM road, coastline and settlement features. It is shipped inside the signed application and rendered by MapLibre before any network call. OpenStreetMap/ODbL attribution remains visible; the build script downloads raw map data through one Overpass query and never bulk-downloads public raster tiles.
 
-For the initial two regions, vector tiles are generated as release artifacts, uploaded to object storage/CDN, and cached by MapLibre native offline packs. Seed spot GeoJSON is bundled independently, so the pins, coast context and app remain useful before any network call. Tile package version and checksum are persisted with each offline region.
+MapLibre `OfflineManager` remains available for optional higher-detail bounded styles. Public `tile.openstreetmap.org` is prohibited: the [OSMF tile policy](https://operations.osmfoundation.org/policies/tiles/) explicitly forbids prefetch and offline packs. Any configured production style must therefore be Mera-controlled and explicitly permit offline caching. Package version/checksum and completion state are persisted with each region.
 
 ## Backend alternatives
 
@@ -68,4 +69,3 @@ For the initial two regions, vector tiles are generated as release artifacts, up
 Discovery is a budgeted, server-only enrichment job. The OpenAI Responses API supports built-in web search and including returned source URLs. Each response must conform to a strict candidate schema, then pass coordinate evidence, source-domain, dedupe and safety validation before persistence. `store: false`, `max_tool_calls`, a daily call cap and a monthly USD circuit breaker are mandatory. The [Responses API](https://developers.openai.com/api/reference/cli/resources/responses/methods/create) documents built-in web search, source inclusion and structured output controls.
 
 When the OpenAI budget is exhausted or no API key exists, discovery returns a non-fatal `temporarily_unavailable`; stored and seed spots continue to work.
-

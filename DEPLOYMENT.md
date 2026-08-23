@@ -2,9 +2,9 @@
 
 ## Backend
 
-Production deployment is intentionally credential-gated. Create a Supabase project in a region suitable for Turkish users, then add repository environment secrets `SUPABASE_ACCESS_TOKEN`, `SUPABASE_DB_PASSWORD`, and `SUPABASE_PROJECT_ID`. Add Edge Function secrets from `.env.example`, especially `OPENAI_API_KEY` only when discovery is enabled.
+Production deployment is intentionally credential-gated. Create a Supabase project in a region suitable for Turkish users, then add repository secrets `SUPABASE_ACCESS_TOKEN`, `SUPABASE_DB_PASSWORD`, `SUPABASE_PROJECT_ID`, `SUPABASE_ANON_KEY`, and `OPENAI_API_KEY`. The workflow uploads the OpenAI key and fixed discovery limits directly as Edge Function secrets; the key must never be an Expo environment value.
 
-In Supabase Auth, enable anonymous sign-ins and manual identity linking. Keep `mera://auth/callback` in the redirect allowlist. Configure the sign-in and change-email templates to show the six-digit `Token` as well as a link; Mera's in-app flow verifies that OTP. Configure production SMTP before release because the default mail service is rate-limited and not a delivery SLA.
+The deploy workflow runs `supabase config push`, which enables anonymous sign-ins/manual identity linking and keeps `mera://auth/callback` in the redirect allowlist from version-controlled configuration. In the dashboard, configure the sign-in and change-email templates to show the six-digit `Token` as well as a link; Mera's in-app flow verifies that OTP. Configure production SMTP before release because the default mail service is rate-limited and not a delivery SLA.
 
 This is the first unavoidable owner action: the project owner must create/select the Supabase organization, accept its terms and control billing. Do not send passwords or service-role keys in chat; enter them in Supabase/GitHub secret fields.
 
@@ -28,7 +28,9 @@ npx expo run:ios
 npx expo run:android
 ```
 
-EAS profiles provide development, Android APK preview, Android AAB production and iOS simulator/production builds. Store submission requires the owner's Apple Developer and Google Play accounts and signing authority.
+EAS profiles provide development, Android APK preview, Android AAB production and iOS simulator/production builds. Run `eas init` once inside `apps/mobile`, then put the returned UUID in the GitHub repository variable `EAS_PROJECT_ID`. Create an Expo access token and store it as the GitHub secret `EXPO_TOKEN`. In the EAS `development`, `preview`, and `production` environments, configure `EXPO_PUBLIC_SUPABASE_URL` and `EXPO_PUBLIC_SUPABASE_ANON_KEY`; the optional map style variable must only reference an offline-permitted source. The manual `Mobile build` GitHub workflow then starts signed builds without exposing credentials in source.
+
+The generated app icon is opaque and mask-safe; Expo's SDK 57 splash-screen config plugin owns native splash generation. Verify the final adaptive mask and splash visually on the preview APK and iOS release/TestFlight build, because development clients do not exactly reproduce standalone splash behavior.
 
 This is the second unavoidable owner action: sign in to an Expo account for EAS, then authorize Apple/Google signing only through their official prompts. Local source and unsigned JavaScript exports do not require those accounts.
 
@@ -40,6 +42,7 @@ This is the second unavoidable owner action: sign in to an Expo account for EAS,
 - Current Turkish amateur fishing regulation dataset loaded and dated.
 - Open-Meteo commercial plan purchased before any commercial use.
 - Privacy disclosure, location purpose strings and account deletion flow reviewed.
+- Owner fields in `PRIVACY_POLICY_TR.md` completed, legally reviewed and published at a stable public HTTPS URL; `STORE_RELEASE_CHECKLIST.md` complete.
 - Supabase upgraded to Pro before pause-free production reliability is promised.
 
 See `BUILD_REPORT.md` for the exact checks already completed and the current environment blockers.

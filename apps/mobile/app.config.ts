@@ -5,11 +5,14 @@ const config: ExpoConfig = {
   slug: "mera",
   scheme: "mera",
   version: "0.1.0",
+  icon: "./assets/icon.png",
+  primaryColor: "#375E4C",
   orientation: "portrait",
   userInterfaceStyle: "automatic",
   runtimeVersion: { policy: "appVersion" },
   ios: {
     bundleIdentifier: "app.mera.mobile",
+    buildNumber: "1",
     supportsTablet: true,
     infoPlist: {
       NSLocationWhenInUseUsageDescription: "Yakındaki meraları bulmak, pusula yönünü ve kuş uçuşu mesafeyi göstermek için konumun gerekir.",
@@ -18,12 +21,19 @@ const config: ExpoConfig = {
   },
   android: {
     package: "app.mera.mobile",
+    versionCode: 1,
+    adaptiveIcon: {
+      foregroundImage: "./assets/icon.png",
+      backgroundColor: "#F4F2EA"
+    },
     permissions: ["ACCESS_COARSE_LOCATION", "ACCESS_FINE_LOCATION"],
+    blockedPermissions: ["android.permission.RECORD_AUDIO"],
     predictiveBackGestureEnabled: true
   },
   plugins: [
     "expo-router",
     "@maplibre/maplibre-react-native",
+    ["expo-splash-screen", { image: "./assets/icon.png", imageWidth: 180, resizeMode: "contain", backgroundColor: "#F4F2EA" }],
     ["expo-sqlite", { enableFTS: true }],
     ["expo-image-picker", { photosPermission: "Av veya mera fotoğrafını cihazda saklamak için fotoğraflarına erişim izni gerekir.", cameraPermission: "Av veya mera fotoğrafı çekmek için kamera izni gerekir." }],
     ["expo-location", { locationWhenInUsePermission: "Yakındaki meraları ve çevrimdışı yönü göstermek için konumuna izin ver." }]
@@ -31,7 +41,8 @@ const config: ExpoConfig = {
   experiments: { typedRoutes: true },
   extra: {
     mapStyleUrl: process.env.EXPO_PUBLIC_MAP_STYLE_URL ?? null,
-    supabaseUrl: process.env.EXPO_PUBLIC_SUPABASE_URL ?? null
+    supabaseUrl: process.env.EXPO_PUBLIC_SUPABASE_URL ?? null,
+    eas: process.env.EAS_PROJECT_ID ? { projectId: process.env.EAS_PROJECT_ID } : undefined
   }
 };
 

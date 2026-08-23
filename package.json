@@ -26,7 +26,8 @@
     "basemap:build": "node scripts/build-offline-basemap.mjs",
     "basemap:verify": "node scripts/verify-offline-basemap.mjs",
     "test:integration:providers": "node scripts/smoke-providers.mjs",
-    "test:integration:backend": "node scripts/smoke-backend.mjs"
+    "test:integration:backend": "node scripts/smoke-backend.mjs",
+    "release:preflight": "node scripts/release-preflight.mjs"
   },
   "devDependencies": {
     "@react-native-async-storage/async-storage": "2.2.0",

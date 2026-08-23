@@ -43,3 +43,8 @@ export async function recoverPendingLocalPhoto(): Promise<LocalPhoto | null> {
   if (!result || "code" in result || result.canceled) return null;
   return persistAsset(result.assets[0]);
 }
+
+export async function deleteAllLocalPhotos(): Promise<void> {
+  if (!FileSystem.documentDirectory) return;
+  await FileSystem.deleteAsync(`${FileSystem.documentDirectory}photos/`, { idempotent: true });
+}

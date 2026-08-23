@@ -1,5 +1,5 @@
 begin;
-select plan(11);
+select plan(12);
 
 select has_extension('postgis', 'PostGIS is enabled');
 select has_index('public', 'spots', 'spots_location_gix', 'Spot geography has a GiST index');
@@ -12,6 +12,7 @@ select has_policy('public', 'spots', 'spots_publication_requires_permanent_inser
 select has_policy('public', 'catch_reports', 'reports_publication_requires_permanent_insert', 'Public report inserts require a permanent identity');
 select has_policy('storage', 'objects', 'catch_photos_owner_insert', 'Catch photos are owner-path scoped');
 select has_policy('storage', 'objects', 'spot_photos_owner_insert', 'Spot photos are owner-path scoped');
+select is((select confdeltype::text from pg_constraint where conrelid = 'public.spots'::regclass and conname = 'spots_owner_id_fkey'), 'c', 'Deleting an Auth user cascades owned community spots');
 
 select * from finish();
 rollback;

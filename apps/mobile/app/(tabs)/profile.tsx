@@ -3,9 +3,10 @@ import type { ExperienceLevel, FishingType } from "@mera/types";
 import { router } from "expo-router";
 import { useEffect, useState } from "react";
 import { Alert, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
-import { accountStatus, requestExistingAccountOtp, requestGuestEmailOtp, verifyExistingAccountOtp, verifyGuestEmailOtp, type AccountStatus } from "@/auth";
+import { accountStatus, deleteCloudAccount, requestExistingAccountOtp, requestGuestEmailOtp, verifyExistingAccountOtp, verifyGuestEmailOtp, type AccountStatus } from "@/auth";
 import { Button, Card, Label, Loading, Screen } from "@/components";
-import { retryBlockedAccountItems } from "@/db";
+import { deleteLocalAccountData, retryBlockedAccountItems } from "@/db";
+import { deleteAllLocalPhotos } from "@/photos";
 import { useAppState } from "@/store";
 import { runSync } from "@/sync";
 import { colors, spacing } from "@/theme";
@@ -20,6 +21,7 @@ export default function ProfileScreen() {
   const [account, setAccount] = useState<AccountStatus | null>(null);
   const [authBusy, setAuthBusy] = useState(false);
   const [authFlow, setAuthFlow] = useState<"upgrade" | "signin">("upgrade");
+  const [deleteConfirmation, setDeleteConfirmation] = useState("");
   const state = useAppState();
 
   useEffect(() => { void accountStatus().then(setAccount); }, []);
@@ -55,6 +57,22 @@ export default function ProfileScreen() {
     } finally { setAuthBusy(false); }
   }
 
+  async function deleteAccount() {
+    if (deleteConfirmation !== "HESABIMI SIL") return Alert.alert("Onay metni eşleşmiyor", "Silmek için HESABIMI SIL yaz.");
+    if (!state.db) return;
+    setAuthBusy(true);
+    try {
+      if (account?.configured && account.signedIn) await deleteCloudAccount();
+      await deleteLocalAccountData(state.db);
+      await deleteAllLocalPhotos();
+      await state.reload();
+      Alert.alert("Veriler silindi", account?.signedIn ? "Cloud hesabın, özel fotoğrafların ve bu cihazdaki kişisel veriler silindi." : "Bu cihazdaki kişisel veriler silindi.");
+      router.replace("/onboarding");
+    } catch (error) {
+      Alert.alert("Hesap silinemedi", error instanceof Error ? error.message : "Bağlantıyı kontrol edip yeniden dene. Yerel veriler korunuyor.");
+    } finally { setAuthBusy(false); }
+  }
+
   return <Screen><ScrollView contentContainerStyle={styles.content}>
     <Card><Label>Hesap ve veri devamlılığı</Label>
       {!account?.configured ? <Text style={styles.warning}>Cloud ortamı henüz yapılandırılmadı. Uygulama ve yerel kayıtlar çevrimdışı çalışmaya devam eder.</Text>
@@ -72,6 +90,8 @@ export default function ProfileScreen() {
     <Card><Label>Maksimum kuş uçuşu yarıçap</Label><View style={styles.wrap}>{[25, 50, 100, 150].map((item) => <Button key={item} title={`${item} km`} variant={state.maxDistanceKm === item ? "primary" : "secondary"} onPress={() => state.updatePreference("max_distance_km", String(item))} />)}</View><View style={styles.row}><TextInput style={styles.input} value={customDistance} onChangeText={setCustomDistance} keyboardType="number-pad" placeholder="Özel km (1–200)" placeholderTextColor={colors.muted} /><Button title="Uygula" variant="secondary" onPress={() => { const value = Number(customDistance); if (!Number.isInteger(value) || value < 1 || value > 200) return Alert.alert("1–200 km arasında tam sayı gir"); void state.updatePreference("max_distance_km", String(value)); }} /></View></Card>
     <Card><Label>Takımlarım</Label>{state.gearProfiles.map((gear) => <View key={gear.id} style={styles.gear}><Text style={styles.value}>{gear.name}{state.gear?.id === gear.id ? " · seçili" : ""}</Text><Text style={styles.subtle}>{gear.rodType ?? "?"} · {gear.rodLengthCm ?? "?"} cm · {gear.castingWeightMinG ?? "?"}–{gear.castingWeightMaxG ?? "?"} g · {gear.reelSize ?? "?"}</Text>{state.gear?.id !== gear.id && <Button title="Bu takımı kullan" variant="secondary" onPress={() => state.activateGear(gear.id)} />}</View>)}<Button title="Yeni takım ekle" variant="secondary" onPress={() => router.push({ pathname: "/onboarding", params: { mode: "gear" } })} /></Card>
     <Card><Label>Senkronizasyon</Label><Text style={styles.subtle}>Temel özellikler ve yerel kayıtlar hesap olmadan çalışır. Cloud yapılandırıldığında guest verileri de sahibiyle ilişkilendirilir.</Text><Button title="Şimdi senkronize et" variant="secondary" onPress={async () => { if (state.db) { await runSync(state.db); await state.reload(); } }} /></Card>
+    <Card><Label>Gizlilik</Label><Text style={styles.subtle}>Hangi verinin cihazda veya cloud hesabında tutulduğunu ve hangi üçüncü tarafların kullanıldığını incele.</Text><Button title="Gizlilik ve veri kullanımı" variant="secondary" onPress={() => router.push("/privacy")} /></Card>
+    <Card><Label>Hesap ve kişisel verileri sil</Label><Text style={styles.warning}>Bu işlem geri alınamaz. Kalıcı/guest cloud hesabını, özel fotoğrafları, raporları, meraları, favorileri, takımları ve araç konumunu siler; paketlenmiş genel mera verisi uygulamada kalır.</Text><TextInput autoCapitalize="characters" autoCorrect={false} style={styles.input} value={deleteConfirmation} onChangeText={setDeleteConfirmation} placeholder="HESABIMI SIL" placeholderTextColor={colors.muted} /><Button title={authBusy ? "Bekle…" : "Hesabı ve verilerimi kalıcı sil"} variant="danger" disabled={authBusy} onPress={deleteAccount} /></Card>
   </ScrollView></Screen>;
 }
 

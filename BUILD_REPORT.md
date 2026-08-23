@@ -7,19 +7,22 @@ Checked on 23 August 2026 at commit working tree for Mera 0.1.0.
 - ESLint: zero errors and zero warnings.
 - TypeScript: all five workspaces plus the Expo application pass strict checking.
 - Automated tests: 21 passed (19 configuration/domain/seed tests plus 2 Deno confidence-delta tests).
-- PostgreSQL migration: parsed successfully; 11-assertion pgTAP suite contains spatial, privacy, permanent-account, storage, discovery-lock and regulation checks.
+- PostgreSQL migration: parsed successfully; 12-assertion pgTAP suite contains spatial, privacy, permanent-account, storage, account-cascade, discovery-lock and regulation checks.
 - Edge Function: Deno formatting, static checking and tests pass; structured route/latency/cache/provider logs omit sensitive request data.
 - Embedded offline basemap: 13,504 road/coast/place features, attribution/licence metadata and SHA-256 all pass reproducible verification.
+- Release preflight: 23 required artifacts, opaque 1254×1254 icon, adaptive icon/splash references, EAS profiles, PostGIS/RLS/storage/cascade, account deletion and environment contracts pass.
 - Expo prebuild: Android and iOS native projects generated successfully; identifiers resolve to `app.mera.mobile`.
-- Expo dependency checks: project dependencies are compatible; the only local doctor failure is missing CocoaPods.
+- iOS pod integration: CocoaPods 1.16.2 resolved 116 dependencies/115 pods, including MapLibre, Expo modules and React Native codegen, from the generated workspace.
+- Signed-build automation: manual GitHub workflow is configured for development/preview/simulator/production EAS profiles; it remains credential-gated.
+- Expo dependency checks: all 18/18 `expo-doctor` checks pass when the project-local CocoaPods installation is on `PATH`.
 - Production Metro/Hermes exports: Android 7.6 MB and iOS 7.4 MB bundles generated successfully after the embedded basemap, photo, OTP and detail-flow changes.
 - Live provider smoke test: Open-Meteo weather and marine endpoints returned current Karasu-area data.
-- Dependency audit: 0 critical/high, 11 moderate findings isolated to Expo's Node build/config chain; analysis is in `SECURITY_REVIEW.md`.
+- Dependency audit: 0 critical/high, 12 moderate findings isolated to Expo's Node build/config chain; analysis is in `SECURITY_REVIEW.md`.
 
 ## Not executable in the attached environment
 
 - Android APK/AAB native compilation: Android SDK is not installed.
-- iOS native compilation/simulator: CocoaPods is absent and CoreSimulatorService has no usable runtime. Homebrew installation was attempted, but this macOS runtime reported unsupported `dunno` CPU architecture for CocoaPods dependencies.
+- iOS native compilation/simulator: pod integration passes, but Xcode 26.6 fails before compiling application code because `IDESimulatorFoundation` cannot load a required `DVTDownloads` symbol. Xcode explicitly requests `xcodebuild -runFirstLaunch`; repairing/updating this machine's Xcode installation requires owner/admin action.
 - Local Supabase migration/pgTAP execution: Docker CLI exists but the daemon is unavailable. CI is configured to run `supabase db start` and `supabase test db` on Linux.
 - Physical-device acceptance: no iPhone or Android phone is attached. Two Maestro offline flows are included but cannot replace the unrun sensor/privacy/device matrix.
 - Backend/mobile deployment: no owner Supabase, Expo/EAS, Apple Developer or Google Play credentials are available.

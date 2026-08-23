@@ -1,6 +1,7 @@
 import type { ExperienceLevel, FishingType, GearProfile, SpeciesId, Spot } from "@mera/types";
 import * as Network from "expo-network";
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import { AppState as NativeAppState } from "react-native";
 import { conditionsMap, getActiveGear, getSetting, listFavorites, listGearProfiles, listSpots, openDatabase, setActiveGear, setFavorite, setSetting, type Database } from "./db";
 import { runSync } from "./sync";
 
@@ -74,6 +75,14 @@ export function AppStateProvider({ children }: React.PropsWithChildren) {
   useEffect(() => {
     if (!db || !isConnected) return;
     void runSync(db).then(() => reload()).catch((error) => console.error("sync_failed", error instanceof Error ? error.name : "unknown"));
+  }, [db, isConnected, reload]);
+  useEffect(() => {
+    if (!db) return;
+    const subscription = NativeAppState.addEventListener("change", (nextState) => {
+      if (nextState !== "active" || !isConnected) return;
+      void runSync(db).then(() => reload()).catch((error) => console.error("foreground_sync_failed", error instanceof Error ? error.name : "unknown"));
+    });
+    return () => subscription.remove();
   }, [db, isConnected, reload]);
 
   const toggleFavorite = useCallback(async (spotId: string) => {

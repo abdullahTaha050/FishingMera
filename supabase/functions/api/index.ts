@@ -228,6 +228,38 @@ async function nearby(url: URL) {
     : response({ spots: result.data, distanceType: "STRAIGHT_LINE" });
 }
 
+async function removeOwnerStorage(
+  db: ReturnType<typeof serviceClient>,
+  bucket: "catch-photos" | "spot-photos",
+  ownerId: string,
+) {
+  const paths: string[] = [];
+  async function walk(prefix: string, depth: number) {
+    let offset = 0;
+    while (true) {
+      const listed = await db.storage.from(bucket).list(prefix, {
+        limit: 1000,
+        offset,
+      });
+      if (listed.error) throw new Error("ACCOUNT_STORAGE_LIST_FAILED");
+      for (const item of listed.data ?? []) {
+        const path = `${prefix}/${item.name}`;
+        if (item.id) paths.push(path);
+        else if (depth < 3) await walk(path, depth + 1);
+      }
+      if ((listed.data?.length ?? 0) < 1000) break;
+      offset += 1000;
+    }
+  }
+  await walk(ownerId, 0);
+  for (let index = 0; index < paths.length; index += 100) {
+    const removed = await db.storage.from(bucket).remove(
+      paths.slice(index, index + 100),
+    );
+    if (removed.error) throw new Error("ACCOUNT_STORAGE_DELETE_FAILED");
+  }
+}
+
 async function authenticatedUser(
   request: Request,
 ): Promise<{ id: string; isAnonymous: boolean } | null> {
@@ -544,6 +576,33 @@ async function discover(request: Request) {
       retryable: true,
       existingDataStillAvailable: true,
     }, 503);
+  }
+}
+
+async function deleteAccount(request: Request) {
+  const identity = await authenticatedUser(request);
+  if (!identity) return response({ code: "AUTH_REQUIRED" }, 401);
+  const body = z.object({ confirmation: z.literal("HESABIMI SIL") }).parse(
+    await request.json(),
+  );
+  if (body.confirmation !== "HESABIMI SIL") {
+    return response({ code: "CONFIRMATION_REQUIRED" }, 400);
+  }
+  const db = serviceClient();
+  try {
+    await Promise.all([
+      removeOwnerStorage(db, "catch-photos", identity.id),
+      removeOwnerStorage(db, "spot-photos", identity.id),
+    ]);
+    const deleted = await db.auth.admin.deleteUser(identity.id, false);
+    if (deleted.error) throw new Error("ACCOUNT_AUTH_DELETE_FAILED");
+    structuredLog("account_deleted", { outcome: "complete" });
+    return response({ ok: true });
+  } catch (error) {
+    structuredLog("account_delete_failed", {
+      code: error instanceof Error ? error.message : "UNKNOWN",
+    });
+    return response({ code: "ACCOUNT_DELETE_FAILED", retryable: true }, 503);
   }
 }
 
@@ -903,6 +962,8 @@ Deno.serve(async (request) => {
       result = await discover(request);
     } else if (request.method === "POST" && path === "/sync") {
       result = await syncMutation(request);
+    } else if (request.method === "POST" && path === "/account/delete") {
+      result = await deleteAccount(request);
     } else {
       result = response({ code: "NOT_FOUND" }, 404);
     }

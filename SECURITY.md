@@ -9,3 +9,4 @@
 - API code emits structured route/status/latency, cache outcome and external-service outcome logs, but never request bodies, authorization headers, email, precise coordinates, notes or photo metadata. Responses include an `x-request-id` for support correlation.
 - External responses are schema-validated; OpenAI output is untrusted input.
 - Safety copy never claims navigation, route access or sea safety.
+- In-app deletion requires the exact `HESABIMI SIL` confirmation. The authenticated Edge route removes owner-path objects from both private photo buckets and then deletes the Auth user; cascading foreign keys remove owned rows. Local personal tables and durable photo files are purged only after cloud deletion succeeds, avoiding a false-success state when offline.
