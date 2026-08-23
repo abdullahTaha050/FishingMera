@@ -1,4 +1,5 @@
 import * as FileSystem from "expo-file-system/legacy";
+import { randomUUID } from "expo-crypto";
 import { ImageManipulator, SaveFormat } from "expo-image-manipulator";
 import * as ImagePicker from "expo-image-picker";
 
@@ -20,7 +21,7 @@ async function persistAsset(asset: ImagePicker.ImagePickerAsset): Promise<LocalP
   const encoded = await rendered.saveAsync({ compress: 0.82, format: SaveFormat.JPEG });
   const directory = `${FileSystem.documentDirectory}photos/`;
   await FileSystem.makeDirectoryAsync(directory, { intermediates: true });
-  const id = globalThis.crypto.randomUUID();
+  const id = randomUUID();
   const destination = `${directory}${id}.jpg`;
   await FileSystem.copyAsync({ from: encoded.uri, to: destination });
   return { id, uri: destination, mimeType: "image/jpeg", width: encoded.width, height: encoded.height, syncStatus: "PENDING" };

@@ -2,6 +2,7 @@ import { SEED_SPOTS, SEED_VERSION } from "@mera/seed-data";
 import { GENERAL_SEA_REGULATION_TR, REGULATION_VERSION, SPECIES_REGULATIONS } from "@mera/config";
 import { summarizeRecentReports, type CatchReportForSummary } from "@mera/domain";
 import type { ConditionSnapshot, GearProfile, PublicationLevel, RecentReportSummary, SpeciesId, Spot, SyncQueueItem } from "@mera/types";
+import { randomUUID } from "expo-crypto";
 import * as SQLite from "expo-sqlite";
 import type { LocalPhoto } from "./photos";
 
@@ -147,7 +148,7 @@ export async function getVehicleLocation(db: Database): Promise<{ latitude: numb
 }
 
 export async function saveCatchReport(db: Database, payload: Record<string, unknown>): Promise<string> {
-  const id = globalThis.crypto.randomUUID();
+  const id = randomUUID();
   const now = new Date().toISOString();
   await db.withTransactionAsync(async () => {
     await db.runAsync("INSERT INTO catch_reports(id,payload,sync_status,created_at,updated_at) VALUES(?,?,'PENDING',?,?)", id, JSON.stringify({ id, ...payload }), now, now);
@@ -174,7 +175,7 @@ export interface UserSpotInput {
 }
 
 export async function saveUserSpot(db: Database, input: UserSpotInput): Promise<string> {
-  const id = globalThis.crypto.randomUUID();
+  const id = randomUUID();
   const now = new Date().toISOString();
   const spot: Spot = {
     id,
@@ -217,7 +218,7 @@ export async function saveUserSpot(db: Database, input: UserSpotInput): Promise<
 }
 
 export async function saveFeedback(db: Database, spotId: string, feedbackType: "LOCATION_CORRECT" | "FISHABLE" | "ACCESS_CHANGED" | "PROHIBITED" | "DANGEROUS" | "SPECIES_WRONG", note?: string): Promise<void> {
-  const id = globalThis.crypto.randomUUID();
+  const id = randomUUID();
   await enqueue(db, "FEEDBACK", id, "UPSERT", { id, spotId, feedbackType, note: note?.trim() || undefined });
   await trackEvent(db, "spot_feedback_created", { feedbackType });
 }
@@ -244,7 +245,7 @@ export async function recentReportsMap(db: Database, speciesId: SpeciesId, now =
 }
 
 async function enqueue(db: Database, entityType: SyncQueueItem["entityType"], entityId: string, operation: SyncQueueItem["operation"], payload: Record<string, unknown>): Promise<void> {
-  const id = globalThis.crypto.randomUUID();
+  const id = randomUUID();
   const now = new Date().toISOString();
   const key = `${entityType}:${entityId}:${operation}:${id}`;
   await db.runAsync("INSERT INTO sync_queue(id,entity_id,entity_type,operation,payload,idempotency_key,state,attempts,next_attempt_at,created_at) VALUES(?,?,?,?,?,?,'PENDING',0,?,?)", id, entityId, entityType, operation, JSON.stringify(payload), key, now, now);
@@ -292,5 +293,5 @@ const allowedEvents = new Set(["recommendation_requested", "spot_opened", "spot_
 export async function trackEvent(db: Database, name: string, properties: Record<string, string | number | boolean> = {}): Promise<void> {
   if (!allowedEvents.has(name)) throw new Error("ANALYTICS_EVENT_NOT_ALLOWED");
   if (Object.keys(properties).some((key) => /lat|lon|coordinate|location/i.test(key))) throw new Error("PRECISE_LOCATION_ANALYTICS_FORBIDDEN");
-  await db.runAsync("INSERT INTO analytics_events(id,name,properties,created_at) VALUES(?,?,?,?)", globalThis.crypto.randomUUID(), name, JSON.stringify(properties), new Date().toISOString());
+  await db.runAsync("INSERT INTO analytics_events(id,name,properties,created_at) VALUES(?,?,?,?)", randomUUID(), name, JSON.stringify(properties), new Date().toISOString());
 }

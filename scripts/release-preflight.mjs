@@ -21,6 +21,8 @@ const appConfig = await readFile("apps/mobile/app.config.js", "utf8");
 for (const marker of ["app.mera.mobile", "./assets/icon.png", "adaptiveIcon", "expo-splash-screen", "buildNumber", "versionCode", "EAS_PROJECT_ID", "ITSAppUsesNonExemptEncryption", "android.permission.RECORD_AUDIO"]) {
   if (!appConfig.includes(marker)) throw new Error(`APP_CONFIG_MARKER_MISSING:${marker}`);
 }
+const mobilePackage = JSON.parse(await readFile("apps/mobile/package.json", "utf8"));
+if (!mobilePackage.dependencies?.["expo-crypto"]) throw new Error("EXPO_CRYPTO_DEPENDENCY_MISSING");
 
 const eas = JSON.parse(await readFile("apps/mobile/eas.json", "utf8"));
 if (eas.build?.preview?.android?.buildType !== "apk") throw new Error("EAS_PREVIEW_APK_MISSING");
@@ -39,6 +41,9 @@ const components = await readFile("apps/mobile/src/components.tsx", "utf8");
 for (const marker of ["SafeAreaView", 'edges={["bottom"]}']) {
   if (!components.includes(marker)) throw new Error(`BOTTOM_SAFE_AREA_MISSING:${marker}`);
 }
+const uuidSources = await Promise.all(["apps/mobile/src/db.ts", "apps/mobile/src/photos.ts", "apps/mobile/app/onboarding.tsx"].map((path) => readFile(path, "utf8")));
+if (uuidSources.some((source) => source.includes("globalThis.crypto.randomUUID"))) throw new Error("UNSUPPORTED_REACT_NATIVE_RANDOM_UUID");
+if (uuidSources.some((source) => !source.includes('from "expo-crypto"'))) throw new Error("EXPO_CRYPTO_UUID_IMPORT_MISSING");
 
 const migration = await readFile("supabase/migrations/202608230001_initial.sql", "utf8");
 for (const marker of ["create extension if not exists postgis", "nearby_spots", "enable row level security", "spots_publication_requires_permanent_insert", "reports_publication_requires_permanent_insert", "catch-photos", "spot-photos", "on delete cascade"]) {
