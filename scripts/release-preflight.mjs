@@ -35,6 +35,10 @@ for (const marker of ["Appearance.getColorScheme()", '"#F4F2EA", "#121815"', '"#
 if (theme.includes("PlatformColor") || theme.includes('"?attr/') || theme.includes('"?android:attr/')) {
   throw new Error("ANDROID_RUNTIME_RESOURCE_COLOR_FORBIDDEN");
 }
+const components = await readFile("apps/mobile/src/components.tsx", "utf8");
+for (const marker of ["SafeAreaView", 'edges={["bottom"]}']) {
+  if (!components.includes(marker)) throw new Error(`BOTTOM_SAFE_AREA_MISSING:${marker}`);
+}
 
 const migration = await readFile("supabase/migrations/202608230001_initial.sql", "utf8");
 for (const marker of ["create extension if not exists postgis", "nearby_spots", "enable row level security", "spots_publication_requires_permanent_insert", "reports_publication_requires_permanent_insert", "catch-photos", "spot-photos", "on delete cascade"]) {

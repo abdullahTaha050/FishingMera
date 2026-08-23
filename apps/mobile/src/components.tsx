@@ -1,10 +1,11 @@
 import { stalenessLabelTr } from "@mera/domain";
 import React from "react";
 import { ActivityIndicator, Pressable, StyleSheet, Text, View, type PressableProps } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { colors, spacing } from "./theme";
 
 export function Screen({ children }: React.PropsWithChildren) {
-  return <View style={styles.screen}>{children}</View>;
+  return <SafeAreaView edges={["bottom"]} style={styles.screen}>{children}</SafeAreaView>;
 }
 
 export function Button({ title, variant = "primary", ...props }: PressableProps & { title: string; variant?: "primary" | "secondary" | "danger" }) {
