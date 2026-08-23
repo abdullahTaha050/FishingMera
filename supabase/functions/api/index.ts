@@ -467,7 +467,20 @@ async function discover(request: Request) {
         },
       }),
     });
-    if (!openaiResponse.ok) throw new Error(`OPENAI_${openaiResponse.status}`);
+    if (!openaiResponse.ok) {
+      const providerError = await openaiResponse.json().catch(() => null) as {
+        error?: { code?: unknown; type?: unknown };
+      } | null;
+      const rawProviderCode = typeof providerError?.error?.code === "string"
+        ? providerError.error.code
+        : typeof providerError?.error?.type === "string"
+        ? providerError.error.type
+        : null;
+      const providerCode = rawProviderCode && /^[a-z0-9_]+$/i.test(rawProviderCode)
+        ? `_${rawProviderCode.toUpperCase()}`
+        : "";
+      throw new Error(`OPENAI_${openaiResponse.status}${providerCode}`);
+    }
     const result = await openaiResponse.json() as {
       output?: Array<
         { type: string; content?: Array<{ type: string; text?: string }> }
