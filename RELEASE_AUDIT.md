@@ -13,21 +13,21 @@ Audit date: 23 August 2026. This file separates implemented source, automated ev
 | Multi-gear profile, experience, fishing type, species and radius preferences | PASS — source/typecheck | onboarding/profile/store/SQLite implementations; nine configured species |
 | Deterministic recommendation, explanations and hard safety rules | PASS — automated/source | config/domain tests; structured factor codes; last-90-day local report summaries feed the report factor; AI excluded from scoring |
 | Weather/marine cache, staleness and fishing-time windows | PASS — contract/source | live provider smoke test; condition cache Edge route; timestamp/staleness UI |
-| Condition snapshot attached to catch report | PASS — source; HOSTED GATE | spot-scoped condition cache and closest prior/12-hour-next association in `/sync`; requires deployed integration run |
-| Evidence-preserving server-side web discovery | PASS — static/unit; HOSTED GATE | Responses API Edge route, strict schema, source/coordinate rejection, persistence and cost circuit breakers |
+| Condition snapshot attached to catch report | PASS — hosted integration | Hosted smoke creates a spot-scoped condition row and proves the synced report retains its `condition_snapshot_id` |
+| Evidence-preserving server-side web discovery | PASS — live integration | Forced OpenAI discovery returned six Karasu/İSTAVRİT candidates with two-to-four sources each; cached replay preserved source and coordinate contracts |
 | Spot detail, sources, photos, reports, personal notes, full conditions, regulation and offline actions | PASS — source/export | `app/spot/[id].tsx`; local-only SQLite notes; all cached weather/marine fields; versioned regulation dataset; local report/photo display |
 | Offline photo/report/spot queues and reconnect/foreground sync | PASS — source/unit; DEVICE GATE | durable JPEG copies, EXIF removal, outbox recovery, idempotency/backoff tests; reconnect still needs real device/backend |
-| Guest mode, OTP upgrade and account deletion | PASS — source; HOSTED/EMAIL GATE | Supabase anonymous/OTP implementation, manual linking config, permanent-account RLS, storage-aware Auth deletion endpoint and local purge; hosted smoke pending |
-| Public/private/approximate coordinate privacy | PASS — static/pgTAP definition; HOSTED GATE | separate exact-coordinate table, public radius filter, RLS and 12-assertion pgTAP suite; live cross-account run pending |
+| Guest mode, OTP upgrade and account deletion | PASS — hosted deletion; EMAIL/DEVICE GATE for OTP | Hosted smoke proves anonymous auth, exact deletion confirmation, Auth/data removal and deleted-session rejection; ownership-preserving OTP upgrade still needs the real email/device run |
+| Public/private/approximate coordinate privacy | PASS — pgTAP/hosted rules; DEVICE GATE for cross-account UI | Separate exact-coordinate table, public radius filter, RLS and 16-assertion pgTAP suite; hosted smoke rejects anonymous public reports, while the cross-account device flow remains pending |
 | Community feedback, abuse limit and confidence update | PASS — automated/source | five/hour server limit, conservative ± deltas with Deno tests, acknowledged score returned to SQLite |
 | Privacy-friendly analytics and observability | PASS — source | local event allowlist rejects location-like keys; structured request/cache/provider/cost logs omit bodies and coordinates |
 | Cost controls and operational documentation | PASS — docs/source | `COSTS.md`, discovery budgets/cache, graceful no-key/no-budget fallback |
 | CI/CD and reproducible release configuration | PASS — configuration | CI, pgTAP job, backend deploy+smoke workflow, manual EAS signed-build workflow, preview APK/production AAB/iOS profiles |
 | Store-ready branding/configuration | PASS — static/prebuild | opaque square icon, adaptive icon, splash, bundle/package IDs and build numbers; `npm run release:preflight` |
 | Privacy disclosure and store submission inventory | PASS — draft/source; OWNER/LEGAL GATE | in-app Turkish disclosure, owner-fielded policy draft, account deletion and platform checklists; public URL/legal identity/review pending |
-| Deployed production backend | ACCOUNT GATE — NOT PROVEN | Requires owner Supabase project/login/secrets; no hosted URL exists in this workspace |
-| Signed Android APK/AAB and iOS IPA/TestFlight build | ACCOUNT/SIGNING GATE — NOT PROVEN | Android Gradle/plugin toolchains resolve through SDK package selection, but local SDK licence/packages and Expo/platform signing remain owner-gated; no signed binary exists yet |
-| Full real-device airplane-mode/reconnect acceptance | DEVICE GATE — NOT PROVEN | Maestro flows/checklist exist, but no Android/iPhone run record exists |
+| Deployed production backend | PASS — live integration | Supabase project `dwpiuyasffstbjanzfxj` in `eu-west-1`; migrations/functions/secrets deployed; expanded hosted smoke and live OpenAI discovery pass |
+| Signed Android APK/AAB and iOS IPA/TestFlight build | PARTIAL — Android APK/AAB + iOS Simulator | Signed preview APK `d30ce475-b4af-4855-a575-367c12fab36c` and production AAB `a0cc1b81-cf5e-4f71-9a50-f068c0a67db9` are downloaded and structurally/signature verified; physical iOS signing remains owner-gated |
+| Full real-device airplane-mode/reconnect acceptance | DEVICE GATE — IN PROGRESS | Galaxy A30s/Android 11 testing found and closed launch/theme defects; current APK installation and the full Android+iPhone scenario remain unproven |
 
 ## Required 23-step MVP scenario
 
@@ -43,8 +43,8 @@ Audit date: 23 August 2026. This file separates implemented source, automated ev
 
 ## Current blockers to declaring MVP complete
 
-1. Deploy migrations and Edge Function to an owner-controlled Supabase project, configure Auth/SMTP and server secrets, then pass `npm run test:integration:backend`.
-2. Link an Expo project, provision signing credentials and produce the preview Android APK plus production Android/iOS builds.
-3. Run and record `DEVICE_TEST_CHECKLIST.md` on one physical Android phone and one supported iPhone, including airplane-mode restart, GPS/compass, vehicle movement, photo queue, OTP and reconnect idempotency.
+1. Install commit `1860cc2` on the connected Galaxy A30s and run/record all of `DEVICE_TEST_CHECKLIST.md`, including airplane-mode restart, GPS/compass, vehicle movement, photo queue, OTP and reconnect idempotency.
+2. Provision physical iOS signing and produce the iPhone IPA/TestFlight build.
+3. Repeat and record the required physical-device coverage on the supported iPhone, including OTP ownership continuity and account deletion.
 
 Until all three are evidenced, the product is release-candidate source, not a completed production MVP.
