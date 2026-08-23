@@ -203,6 +203,7 @@ create table public.discovery_runs (
   error_code text
 );
 create index discovery_runs_region_idx on public.discovery_runs(region_key, started_at desc);
+create unique index discovery_runs_active_idx on public.discovery_runs(region_key) where status = 'RUNNING';
 
 create table public.discovery_candidates (
   id uuid primary key default gen_random_uuid(),
@@ -249,7 +250,8 @@ create table public.regulations (
   species_id text references public.species(id),
   region text,
   minimum_length_cm numeric(6,2),
-  daily_limit integer,
+  daily_limit numeric(7,2),
+  limit_unit text check (limit_unit is null or limit_unit in ('KG', 'COUNT')),
   prohibited_from date,
   prohibited_to date,
   rule_text text not null
@@ -279,6 +281,25 @@ insert into public.species (id, name_tr, active_months) values
   ('MEZGIT', 'Mezgit', '{1,2,3,4,11,12}'),
   ('ZARGANA', 'Zargana', '{5,6,7,8,9,10}'),
   ('HAMSI', 'Hamsi', '{1,2,10,11,12}');
+
+insert into public.regulation_versions (version, source_url, source_title, effective_from, effective_to, checked_at, published_at)
+values (
+  'TR-6-2-2024-21-AMENDED-2025-12',
+  'https://yalova.tarimorman.gov.tr/Duyuru/513/6_2-Numarali-Amator-Amacli-Su-Urunleri-Avciliginin-Duzenlenmesi-Hakkinda-Teblig-_no-2024_21_',
+  '6/2 Numaralı Amatör Amaçlı Su Ürünleri Avcılığı Tebliği (2024/21), 2025/12 değişikliği',
+  '2024-09-01', '2028-08-31', '2026-08-23T00:00:00Z', '2024-08-11T00:00:00Z'
+);
+
+insert into public.regulations (version_id, species_id, region, minimum_length_cm, daily_limit, limit_unit, rule_text)
+select id, rule.species_id, 'Türkiye denizleri', rule.minimum_length_cm, 5, 'KG',
+  'Kg ile sınırlanan deniz türlerinde toplam alıkonulabilir miktar 5 kg; tür ve saha özelindeki diğer güncel hükümler ayrıca kontrol edilmelidir.'
+from public.regulation_versions,
+(values
+  ('ISTAVRIT', 13::numeric), ('LUFER', 20::numeric), ('CINEKOP', 20::numeric),
+  ('SARIKANAT', 20::numeric), ('PALAMUT', 25::numeric), ('LEVREK', 25::numeric),
+  ('MEZGIT', 13::numeric), ('HAMSI', 9::numeric)
+) as rule(species_id, minimum_length_cm)
+where version = 'TR-6-2-2024-21-AMENDED-2025-12';
 
 create or replace function public.nearby_spots(lat double precision, lon double precision, radius_m integer, result_limit integer default 100)
 returns table (

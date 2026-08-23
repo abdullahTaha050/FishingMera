@@ -67,3 +67,25 @@ export const GEAR_RULES = [
   }
 ];
 
+export const REGULATION_VERSION = {
+  id: "TR-6-2-2024-21-AMENDED-2025-12",
+  title: "6/2 Numaralı Amatör Amaçlı Su Ürünleri Avcılığı Tebliği (2024/21), 2025/12 değişikliği işlenmiş sürüm",
+  effectiveFrom: "2024-09-01",
+  effectiveTo: "2028-08-31",
+  checkedAt: "2026-08-23T00:00:00.000Z",
+  sourceUrl: "https://yalova.tarimorman.gov.tr/Duyuru/513/6_2-Numarali-Amator-Amacli-Su-Urunleri-Avciliginin-Duzenlenmesi-Hakkinda-Teblig-_no-2024_21_",
+  amendmentUrl: "https://www.tarimorman.gov.tr/HHGM/Haber/142/"
+} as const;
+
+export const GENERAL_SEA_REGULATION_TR = "Denizde kg ile sınırlanan türlerde toplam alıkonulabilir miktar 5 kg'dır. En fazla 4 olta (olta başına en çok 6 iğne) veya en çok 15 iğneli bir çapari kullanılabilir. 1 Nisan–15 Kasım arasında şamandıralarla çevrili yüzme alanlarında, kıyıdan 200 metre içinde avcılık yasaktır.";
+
+export const SPECIES_REGULATIONS: Partial<Record<SpeciesId, { minimumLengthCm: number; limit: number; limitUnit: "KG"; noteTr?: string }>> = {
+  ISTAVRIT: { minimumLengthCm: 13, limit: 5, limitUnit: "KG" },
+  LUFER: { minimumLengthCm: 20, limit: 5, limitUnit: "KG" },
+  CINEKOP: { minimumLengthCm: 20, limit: 5, limitUnit: "KG", noteTr: "Çinekop, lüferin büyüme evresidir; 20 cm altındaki birey alıkonulmamalıdır." },
+  SARIKANAT: { minimumLengthCm: 20, limit: 5, limitUnit: "KG", noteTr: "Sarıkanat, lüferin büyüme evresidir; 20 cm altındaki birey alıkonulmamalıdır." },
+  PALAMUT: { minimumLengthCm: 25, limit: 5, limitUnit: "KG" },
+  LEVREK: { minimumLengthCm: 25, limit: 5, limitUnit: "KG" },
+  MEZGIT: { minimumLengthCm: 13, limit: 5, limitUnit: "KG" },
+  HAMSI: { minimumLengthCm: 9, limit: 5, limitUnit: "KG" }
+};

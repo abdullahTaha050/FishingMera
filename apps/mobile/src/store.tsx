@@ -22,6 +22,13 @@ interface AppState {
 
 const Context = createContext<AppState | null>(null);
 
+async function readAppState(db: Database) {
+  return Promise.all([
+    listSpots(db), listFavorites(db), getActiveGear(db), getSetting(db, "experience"),
+    getSetting(db, "target_species"), getSetting(db, "max_distance_km"), getSetting(db, "last_sync_at")
+  ]);
+}
+
 export function AppStateProvider({ children }: React.PropsWithChildren) {
   const [db, setDb] = useState<Database | null>(null);
   const [spots, setSpots] = useState<Spot[]>([]);
@@ -35,9 +42,7 @@ export function AppStateProvider({ children }: React.PropsWithChildren) {
 
   const reload = useCallback(async () => {
     if (!db) return;
-    const [nextSpots, nextFavorites, nextGear, nextExperience, nextTarget, nextDistance, sync] = await Promise.all([
-      listSpots(db), listFavorites(db), getActiveGear(db), getSetting(db, "experience"), getSetting(db, "target_species"), getSetting(db, "max_distance_km"), getSetting(db, "last_sync_at")
-    ]);
+    const [nextSpots, nextFavorites, nextGear, nextExperience, nextTarget, nextDistance, sync] = await readAppState(db);
     setSpots(nextSpots); setFavoriteIds(nextFavorites); setGear(nextGear);
     if (nextExperience) setExperience(nextExperience as ExperienceLevel);
     if (nextTarget) setTargetSpecies(nextTarget as SpeciesId);
@@ -46,11 +51,18 @@ export function AppStateProvider({ children }: React.PropsWithChildren) {
   }, [db]);
 
   useEffect(() => {
-    openDatabase().then(setDb).catch((error) => console.error("database_init_failed", error));
+    openDatabase().then(async (openedDb) => {
+      const [nextSpots, nextFavorites, nextGear, nextExperience, nextTarget, nextDistance, sync] = await readAppState(openedDb);
+      setSpots(nextSpots); setFavoriteIds(nextFavorites); setGear(nextGear);
+      if (nextExperience) setExperience(nextExperience as ExperienceLevel);
+      if (nextTarget) setTargetSpecies(nextTarget as SpeciesId);
+      if (nextDistance) setMaxDistanceKm(Number(nextDistance));
+      setLastSyncAt(sync);
+      setDb(openedDb);
+    }).catch((error) => console.error("database_init_failed", error));
     const subscription = Network.addNetworkStateListener((state) => setConnected(Boolean(state.isConnected && state.isInternetReachable !== false)));
     return () => subscription.remove();
   }, []);
-  useEffect(() => { if (db) void reload(); }, [db, reload]);
   useEffect(() => {
     if (!db || !isConnected) return;
     void runSync(db).then(() => reload()).catch((error) => console.error("sync_failed", error instanceof Error ? error.name : "unknown"));

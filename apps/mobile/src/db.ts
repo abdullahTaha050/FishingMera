@@ -1,5 +1,6 @@
 import { SEED_SPOTS, SEED_VERSION } from "@mera/seed-data";
-import type { ConditionSnapshot, GearProfile, Spot, SyncQueueItem } from "@mera/types";
+import { GENERAL_SEA_REGULATION_TR, REGULATION_VERSION, SPECIES_REGULATIONS } from "@mera/config";
+import type { ConditionSnapshot, GearProfile, PublicationLevel, SpeciesId, Spot, SyncQueueItem } from "@mera/types";
 import * as SQLite from "expo-sqlite";
 
 export type Database = SQLite.SQLiteDatabase;
@@ -25,12 +26,21 @@ async function migrate(db: Database): Promise<void> {
     CREATE TABLE IF NOT EXISTS vehicle_location (singleton INTEGER PRIMARY KEY CHECK(singleton = 1), latitude REAL NOT NULL, longitude REAL NOT NULL, accuracy REAL, saved_at TEXT NOT NULL);
     CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT NOT NULL, updated_at TEXT NOT NULL);
     CREATE TABLE IF NOT EXISTS sync_queue (id TEXT PRIMARY KEY, entity_id TEXT NOT NULL, entity_type TEXT NOT NULL, operation TEXT NOT NULL, payload TEXT NOT NULL, idempotency_key TEXT NOT NULL UNIQUE, state TEXT NOT NULL, attempts INTEGER NOT NULL DEFAULT 0, next_attempt_at TEXT NOT NULL, last_error TEXT, created_at TEXT NOT NULL);
+    CREATE TABLE IF NOT EXISTS analytics_events (id TEXT PRIMARY KEY, name TEXT NOT NULL, properties TEXT NOT NULL, created_at TEXT NOT NULL, uploaded_at TEXT);
+    CREATE TABLE IF NOT EXISTS regulation_versions (id TEXT PRIMARY KEY, payload TEXT NOT NULL, checked_at TEXT NOT NULL, effective_to TEXT NOT NULL);
     CREATE INDEX IF NOT EXISTS sync_queue_due_idx ON sync_queue(state, next_attempt_at);
     INSERT OR IGNORE INTO schema_migrations(version, applied_at) VALUES (1, datetime('now'));
   `);
 }
 
 async function seedIfNeeded(db: Database): Promise<void> {
+  await db.runAsync(
+    "INSERT INTO regulation_versions(id,payload,checked_at,effective_to) VALUES(?,?,?,?) ON CONFLICT(id) DO UPDATE SET payload=excluded.payload,checked_at=excluded.checked_at,effective_to=excluded.effective_to",
+    REGULATION_VERSION.id,
+    JSON.stringify({ version: REGULATION_VERSION, generalRuleTr: GENERAL_SEA_REGULATION_TR, species: SPECIES_REGULATIONS }),
+    REGULATION_VERSION.checkedAt,
+    REGULATION_VERSION.effectiveTo
+  );
   const version = await getSetting(db, "seed_version");
   if (version === SEED_VERSION) return;
   await db.withTransactionAsync(async () => {
@@ -64,6 +74,7 @@ export async function setFavorite(db: Database, spotId: string, favorite: boolea
     if (favorite) await db.runAsync("INSERT INTO favorites(spot_id, updated_at, pending_sync) VALUES (?, ?, 1) ON CONFLICT(spot_id) DO UPDATE SET updated_at = excluded.updated_at, pending_sync = 1", spotId, now);
     else await db.runAsync("DELETE FROM favorites WHERE spot_id = ?", spotId);
     await enqueue(db, "FAVORITE", spotId, favorite ? "UPSERT" : "DELETE", { spotId, favorite });
+    await trackEvent(db, "spot_saved", { favorite });
   });
 }
 
@@ -107,11 +118,69 @@ export async function saveCatchReport(db: Database, payload: Record<string, unkn
   await db.withTransactionAsync(async () => {
     await db.runAsync("INSERT INTO catch_reports(id,payload,sync_status,created_at,updated_at) VALUES(?,?,'PENDING',?,?)", id, JSON.stringify({ id, ...payload }), now, now);
     await enqueue(db, "CATCH_REPORT", id, "UPSERT", { id, ...payload });
+    await trackEvent(db, "catch_report_created", { offline: true });
   });
   return id;
 }
 
-export async function listCatchReports(db: Database): Promise<Array<{ id: string; payload: Record<string, unknown>; syncStatus: string; createdAt: string }>> {
+export interface UserSpotInput {
+  canonicalName: string;
+  latitude: number;
+  longitude: number;
+  publicationLevel: PublicationLevel;
+  targetSpecies: SpeciesId[];
+  coastlineType: Spot["coastlineType"];
+  accessType: Spot["accessType"];
+  note?: string;
+}
+
+export async function saveUserSpot(db: Database, input: UserSpotInput): Promise<string> {
+  const id = globalThis.crypto.randomUUID();
+  const now = new Date().toISOString();
+  const spot: Spot = {
+    id,
+    canonicalName: input.canonicalName.trim(),
+    localNames: [],
+    coordinates: { latitude: input.latitude, longitude: input.longitude },
+    coordinatePrecision: "EXACT",
+    province: "Bilinmiyor",
+    district: "Bilinmiyor",
+    country: "TR",
+    coastlineType: input.coastlineType,
+    accessType: input.accessType,
+    beginnerSuitability: "UNKNOWN",
+    terrain: input.note?.trim() || "Kullanıcı kaydı — arazi bilgisi doğrulanmadı",
+    knownHazards: [],
+    accessWarnings: ["Topluluk kaydı; erişim, güvenlik ve yasak durumu ayrıca doğrulanmalı."],
+    prohibitedStatus: "UNKNOWN",
+    targetSpecies: input.targetSpecies,
+    techniques: [],
+    recommendedGearTags: [],
+    sourceType: "COMMUNITY",
+    verificationStatus: "COMMUNITY",
+    confidenceScore: 0.35,
+    publicationLevel: input.publicationLevel,
+    ownerId: "local-device-owner",
+    sources: [],
+    createdAt: now,
+    updatedAt: now
+  };
+  await db.withTransactionAsync(async () => {
+    await db.runAsync("INSERT INTO user_spots(id,payload,sync_status,created_at,updated_at) VALUES(?,?,'PENDING',?,?)", id, JSON.stringify(spot), now, now);
+    await db.runAsync("INSERT INTO spots(id,payload,server_updated_at,downloaded_at) VALUES(?,?,NULL,?) ON CONFLICT(id) DO UPDATE SET payload=excluded.payload,downloaded_at=excluded.downloaded_at", id, JSON.stringify(spot), now);
+    await enqueue(db, "USER_SPOT", id, "UPSERT", { spot });
+    await trackEvent(db, "user_spot_created", { publicationLevel: input.publicationLevel });
+  });
+  return id;
+}
+
+export async function saveFeedback(db: Database, spotId: string, feedbackType: "LOCATION_CORRECT" | "FISHABLE" | "ACCESS_CHANGED" | "PROHIBITED" | "DANGEROUS" | "SPECIES_WRONG", note?: string): Promise<void> {
+  const id = globalThis.crypto.randomUUID();
+  await enqueue(db, "FEEDBACK", id, "UPSERT", { id, spotId, feedbackType, note: note?.trim() || undefined });
+  await trackEvent(db, "spot_feedback_created", { feedbackType });
+}
+
+export async function listCatchReports(db: Database): Promise<{ id: string; payload: Record<string, unknown>; syncStatus: string; createdAt: string }[]> {
   const rows = await db.getAllAsync<{ id: string; payload: string; sync_status: string; created_at: string }>("SELECT id,payload,sync_status,created_at FROM catch_reports ORDER BY created_at DESC");
   return rows.map((row) => ({ id: row.id, payload: JSON.parse(row.payload), syncStatus: row.sync_status, createdAt: row.created_at }));
 }
@@ -134,4 +203,11 @@ export async function getSetting(db: Database, key: string): Promise<string | nu
 
 export async function setSetting(db: Database, key: string, value: string): Promise<void> {
   await db.runAsync("INSERT INTO settings(key,value,updated_at) VALUES(?,?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value,updated_at=excluded.updated_at", key, value, new Date().toISOString());
+}
+
+const allowedEvents = new Set(["recommendation_requested", "spot_opened", "spot_saved", "offline_region_downloaded", "navigation_compass_opened", "catch_report_created", "user_spot_created", "spot_feedback_created"]);
+export async function trackEvent(db: Database, name: string, properties: Record<string, string | number | boolean> = {}): Promise<void> {
+  if (!allowedEvents.has(name)) throw new Error("ANALYTICS_EVENT_NOT_ALLOWED");
+  if (Object.keys(properties).some((key) => /lat|lon|coordinate|location/i.test(key))) throw new Error("PRECISE_LOCATION_ANALYTICS_FORBIDDEN");
+  await db.runAsync("INSERT INTO analytics_events(id,name,properties,created_at) VALUES(?,?,?,?)", globalThis.crypto.randomUUID(), name, JSON.stringify(properties), new Date().toISOString());
 }

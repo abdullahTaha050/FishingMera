@@ -4,15 +4,17 @@ import { useLocalSearchParams } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
 import { Alert, StyleSheet, Text, View } from "react-native";
 import { Button, Card, Loading, Screen, Title } from "@/components";
-import { getSpot, getVehicleLocation, saveVehicleLocation } from "@/db";
+import { getSpot, getVehicleLocation, saveVehicleLocation, trackEvent } from "@/db";
 import { useCurrentLocation, useHeading } from "@/location";
 import { useAppState } from "@/store";
 import { colors, spacing } from "@/theme";
 
 export default function CompassScreen() {
   const { spotId, target: initialTarget } = useLocalSearchParams<{ spotId?: string; target?: string }>(); const state = useAppState(); const location = useCurrentLocation(); const sensor = useHeading();
+  const requestLocation = location.request;
   const [spot, setSpot] = useState<Spot | null>(null); const [vehicle, setVehicle] = useState<(Coordinates & { accuracy?: number; savedAt: string }) | null>(null); const [target, setTarget] = useState(initialTarget === "vehicle" ? "vehicle" : "spot");
-  useEffect(() => { void location.request(); }, []);
+  useEffect(() => { void requestLocation(); }, [requestLocation]);
+  useEffect(() => { if (state.db) void trackEvent(state.db, "navigation_compass_opened", { target: initialTarget === "vehicle" ? "vehicle" : "spot" }); }, [state.db, initialTarget]);
   useEffect(() => { if (state.db) { if (spotId) void getSpot(state.db, spotId).then(setSpot); void getVehicleLocation(state.db).then(setVehicle); } }, [state.db, spotId]);
   const destination = target === "vehicle" ? vehicle : spot?.coordinates; const bearing = useMemo(() => location.coordinates && destination ? initialBearingDegrees(location.coordinates, destination) : null, [location.coordinates, destination]); const distance = useMemo(() => location.coordinates && destination ? haversineDistanceKm(location.coordinates, destination) : null, [location.coordinates, destination]); const rotation = bearing !== null && sensor.heading !== null ? bearing - sensor.heading : 0;
   if (!state.ready) return <Loading />;
@@ -24,4 +26,3 @@ export default function CompassScreen() {
   </View></Screen>;
 }
 const styles = StyleSheet.create({ content: { flex: 1, padding: spacing.md, gap: spacing.md }, compass: { alignItems: "center", paddingVertical: spacing.lg, gap: spacing.sm }, arrow: { width: 120, height: 120, borderRadius: 60, backgroundColor: colors.moss, alignItems: "center", justifyContent: "center" }, arrowText: { color: colors.primary, fontSize: 72, lineHeight: 80 }, direction: { color: colors.ink, fontSize: 22, fontWeight: "900" }, distance: { color: colors.water, fontSize: 30, fontWeight: "900" }, meta: { color: colors.muted, textAlign: "center" }, warning: { color: colors.warning, fontWeight: "800", lineHeight: 21 }, disclaimer: { color: colors.danger, fontWeight: "800", lineHeight: 20 } });
-

@@ -1,6 +1,6 @@
 import { OfflineManager } from "@maplibre/maplibre-react-native";
 import type { Spot } from "@mera/types";
-import type { Database } from "./db";
+import { trackEvent, type Database } from "./db";
 
 export const SAKARYA_NORTH_BOUNDS: [number, number, number, number] = [30.55, 41.02, 31.08, 41.17];
 export const KOCAELI_NORTH_BOUNDS: [number, number, number, number] = [29.90, 41.05, 30.40, 41.24];
@@ -32,6 +32,7 @@ export async function downloadOfflineRegion(
   const mapStyle = process.env.EXPO_PUBLIC_MAP_STYLE_URL;
   if (!mapStyle) throw new Error("OFFLINE_STYLE_NOT_CONFIGURED");
   OfflineManager.setTileCountLimit(80_000);
+  await trackEvent(db, "offline_region_downloaded", { regionId: region.id });
   const now = new Date().toISOString();
   await db.runAsync("INSERT INTO offline_regions(id,name,state,progress,style_url,bounds_json,updated_at) VALUES(?,?,'DOWNLOADING',0,?,?,?) ON CONFLICT(id) DO UPDATE SET state='DOWNLOADING',progress=0,style_url=excluded.style_url,bounds_json=excluded.bounds_json,updated_at=excluded.updated_at", region.id, region.name, mapStyle, JSON.stringify(region.bounds), now);
   const pack = await OfflineManager.createPack(

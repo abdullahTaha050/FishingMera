@@ -1,21 +1,23 @@
-import { GEAR_RULES } from "@mera/config";
+import { GENERAL_SEA_REGULATION_TR, GEAR_RULES, REGULATION_VERSION, SPECIES_REGULATIONS } from "@mera/config";
 import { stalenessLabelTr } from "@mera/domain";
 import type { ConditionSnapshot, Spot } from "@mera/types";
 import { router, useLocalSearchParams } from "expo-router";
 import { useEffect, useState } from "react";
 import { Alert, Linking, ScrollView, StyleSheet, Text, View } from "react-native";
 import { Button, Card, Label, Loading, Screen, Title } from "@/components";
-import { conditionsMap, getSpot } from "@/db";
+import { conditionsMap, getSpot, saveFeedback, trackEvent } from "@/db";
 import { downloadOfflineRegion, SAKARYA_NORTH_BOUNDS } from "@/map";
 import { useAppState } from "@/store";
 import { colors, spacing } from "@/theme";
 
 export default function SpotDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>(); const state = useAppState(); const [spot, setSpot] = useState<Spot | null>(null); const [condition, setCondition] = useState<ConditionSnapshot | null>(null); const [progress, setProgress] = useState<number | null>(null);
-  useEffect(() => { if (state.db && id) { void getSpot(state.db, id).then(setSpot); void conditionsMap(state.db).then((map) => setCondition(map.get(id) ?? null)); } }, [state.db, id]);
+  useEffect(() => { if (state.db && id) { void getSpot(state.db, id).then(setSpot); void conditionsMap(state.db).then((map) => setCondition(map.get(id) ?? null)); void trackEvent(state.db, "spot_opened", { verification: "local" }); } }, [state.db, id]);
   if (!state.ready || !spot) return <Loading />;
   const favorite = state.favoriteIds.includes(spot.id); const gearRule = GEAR_RULES.find((rule) => rule.speciesId === state.targetSpecies);
+  const regulation = SPECIES_REGULATIONS[state.targetSpecies];
   async function offline() { if (!state.db) return; try { await downloadOfflineRegion(state.db, { id: "sakarya-north-v1", name: "Sakarya Kuzey Sahili", bounds: SAKARYA_NORTH_BOUNDS }, setProgress); Alert.alert("İndirme başladı", "Tamamlanan harita paketi yeniden açılışta da kullanılabilir."); } catch (error) { Alert.alert("Offline harita indirilemedi", error instanceof Error && error.message === "OFFLINE_STYLE_NOT_CONFIGURED" ? "Offline indirmeye izinli Mera tile endpoint'i henüz ortam değişkeninde tanımlı değil. Seed pinleri çevrimdışı çalışmaya devam eder." : "Bağlantıyı ve depolama alanını kontrol et."); } }
+  async function feedback(feedbackType: "LOCATION_CORRECT" | "FISHABLE" | "ACCESS_CHANGED" | "PROHIBITED" | "DANGEROUS") { if (!state.db) return; await saveFeedback(state.db, spot!.id, feedbackType); Alert.alert("Teşekkürler", "Geri bildirimin çevrimdışı kuyruğa alındı; bağlantı gelince güvenli biçimde gönderilecek."); }
   return <Screen><ScrollView contentContainerStyle={styles.content}><View><Label>{spot.verificationStatus === "POTENTIAL" ? "Potansiyel · doğrulanmadı" : "Web keşfi · topluluk doğrulaması yok"}</Label><Title>{spot.canonicalName}</Title><Text style={styles.subtle}>{spot.district}, {spot.province} · {spot.coordinates.latitude.toFixed(5)}, {spot.coordinates.longitude.toFixed(5)}</Text></View>
     {spot.verificationStatus === "POTENTIAL" && <Card><Text style={styles.warning}>Coğrafi yapısı nedeniyle potansiyel kıyı av noktası. Henüz doğrulanmadı.</Text></Card>}
     <View style={styles.actions}><Button title={favorite ? "Favoriden çıkar" : "Favoriye ekle"} variant="secondary" onPress={() => state.toggleFavorite(spot.id)} /><Button title="Pusulayla yönel" onPress={() => router.push({ pathname: "/compass", params: { spotId: spot.id } })} /></View>
@@ -24,9 +26,10 @@ export default function SpotDetailScreen() {
     <Card><Label>Hava ve deniz</Label>{condition ? <><Text style={styles.value}>Dalga {condition.waveHeightM ?? "—"} m · Rüzgâr {condition.windSpeedKmh ?? "—"} km/s</Text><Text style={styles.subtle}>{stalenessLabelTr(condition.fetchedAt)}</Text></> : <Text style={styles.warning}>Güncel koşul verisi yok. Uygulama eski veriyi güncelmiş gibi göstermiyor.</Text>}</Card>
     <Card><Label>Bugün için daha uygun saatler</Label><Text style={styles.value}>{condition?.sunrise ? `${new Date(condition.sunrise).toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" })} sonrası yaklaşık 3 saat` : "Gün doğumu çevresi — veri gelince hesaplanır"}</Text><Text style={styles.subtle}>Bu zamanlar tahmini değerlendirmedir; av garantisi değildir.</Text></Card>
     {gearRule && <Card><Label>Başlangıç önerisi</Label><Text style={styles.value}>{gearRule.suggestionTr}</Text><Text style={styles.subtle}>Structured kural veritabanından; yapay zekâ gramaj üretmez.</Text></Card>}
+    <Card><Label>Resmî amatör avcılık kural özeti</Label>{regulation ? <Text style={styles.value}>Asgari boy {regulation.minimumLengthCm} cm · toplam limit {regulation.limit} kg</Text> : <Text style={styles.warning}>Bu hedef tür için uygulamada özel boy satırı bulunmuyor; genel kurallar yine geçerli.</Text>}<Text style={styles.subtle}>{regulation?.noteTr}</Text><Text style={styles.subtle}>{GENERAL_SEA_REGULATION_TR}</Text><Text style={styles.disclaimer}>Son resmî kontrol: {new Date(REGULATION_VERSION.checkedAt).toLocaleDateString("tr-TR")}. Sahadaki levha, geçici karar ve güncel resmî metin önceliklidir.</Text><Text style={styles.link} onPress={() => Linking.openURL(REGULATION_VERSION.sourceUrl)}>Resmî tebliği aç ↗</Text></Card>
     <Card><Label>Offline harita</Label><Text style={styles.subtle}>Yollar, kıyı ve yer adları yalnızca indirmeye izinli Mera vector tile paketi üzerinden indirilir.</Text>{progress !== null && <Text style={styles.value}>%{Math.round(progress)}</Text>}<Button title="Sakarya Kuzey Sahili — Offline indir" variant="secondary" onPress={offline} /></Card>
+    <Card><Label>Topluluk doğrulaması</Label><Text style={styles.subtle}>Geri bildirimler doğrulama kuyruğuna gider; tek başına bir noktayı “doğrulandı” yapmaz.</Text><Button title="Konum doğru" variant="secondary" onPress={() => feedback("LOCATION_CORRECT")} /><Button title="Burada av yapılabiliyor" variant="secondary" onPress={() => feedback("FISHABLE")} /><Button title="Erişim değişti" variant="secondary" onPress={() => feedback("ACCESS_CHANGED")} /><Button title="Yasak veya tehlikeli" variant="danger" onPress={() => feedback("DANGEROUS")} /></Card>
     <Card><Label>Kaynaklar</Label>{spot.sources.map((source) => <Text key={`${source.url}-${source.evidenceType}`} style={styles.link} onPress={() => Linking.openURL(source.url)}>• {source.title} ↗</Text>)}</Card>
   </ScrollView></Screen>;
 }
 const styles = StyleSheet.create({ content: { padding: spacing.md, gap: spacing.md, paddingBottom: 80 }, subtle: { color: colors.muted, lineHeight: 20 }, value: { color: colors.ink, fontSize: 17, fontWeight: "800", lineHeight: 24 }, warning: { color: colors.warning, lineHeight: 21, fontWeight: "700" }, disclaimer: { color: colors.danger, lineHeight: 20, fontWeight: "800", marginTop: spacing.sm }, actions: { gap: spacing.sm }, link: { color: colors.water, lineHeight: 22, textDecorationLine: "underline" } });
-

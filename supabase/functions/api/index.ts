@@ -220,7 +220,44 @@ async function discover(request: Request) {
       new Date(Date.now() - 30 * 86400_000).toISOString(),
     ).order("started_at", { ascending: false }).limit(1).maybeSingle();
   if (recent.data && !requestBody.force) {
-    return response({ source: "cached", runId: recent.data.id });
+    const cachedCandidates = await db.from("discovery_candidates").select(
+      "*,discovery_sources(*)",
+    ).eq("run_id", recent.data.id).order("confidence_score", {
+      ascending: false,
+    });
+    return cachedCandidates.error
+      ? response({ code: "DISCOVERY_CACHE_READ_FAILED" }, 503)
+      : response({
+        source: "cached",
+        runId: recent.data.id,
+        candidates: cachedCandidates.data.map((candidate) => {
+          const coordinates = candidate.candidate_location?.coordinates as
+            | [number, number]
+            | undefined;
+          return {
+            canonicalName: candidate.canonical_name,
+            localNames: [],
+            province: candidate.province,
+            district: candidate.district,
+            latitude: coordinates?.[1] ?? null,
+            longitude: coordinates?.[0] ?? null,
+            coordinatePrecision: candidate.coordinate_precision,
+            coordinateEvidence: candidate.coordinate_evidence,
+            targetSpecies: candidate.target_species,
+            accessEvidence: candidate.access_evidence,
+            confidenceScore: candidate.confidence_score,
+            sources: (candidate.discovery_sources ?? []).map((
+              source: Record<string, unknown>,
+            ) => ({
+              url: source.url,
+              title: source.title,
+              sourceDate: source.source_date,
+              supportsCoordinate: source.supports_coordinate,
+              supportsFishing: source.supports_fishing,
+            })),
+          };
+        }),
+      });
   }
 
   const startOfDay = new Date();
@@ -231,7 +268,20 @@ async function discover(request: Request) {
   const calls = usage.data?.reduce((sum, item) => sum + item.search_calls, 0) ??
     0;
   const dailyLimit = Number(Deno.env.get("DISCOVERY_DAILY_SEARCH_LIMIT") ?? 25);
-  if (calls >= dailyLimit) {
+  const startOfMonth = new Date();
+  startOfMonth.setUTCDate(1);
+  startOfMonth.setUTCHours(0, 0, 0, 0);
+  const monthlyUsage = await db.from("discovery_runs").select(
+    "estimated_cost_usd",
+  ).gte("started_at", startOfMonth.toISOString());
+  const monthlyCost = monthlyUsage.data?.reduce(
+    (sum, item) => sum + Number(item.estimated_cost_usd),
+    0,
+  ) ?? 0;
+  const monthlyLimit = Number(
+    Deno.env.get("DISCOVERY_MONTHLY_USD_LIMIT") ?? 10,
+  );
+  if (calls >= dailyLimit || monthlyCost >= monthlyLimit) {
     return response({
       code: "DISCOVERY_BUDGET_BLOCKED",
       existingDataStillAvailable: true,
@@ -362,12 +412,64 @@ async function discover(request: Request) {
         : hasCoordinates && hasCoordinateSource &&
           Boolean(candidate.coordinateEvidence);
     });
+    for (const candidate of accepted) {
+      const insertedCandidate = await db.from("discovery_candidates").insert({
+        run_id: run.data.id,
+        canonical_name: candidate.canonicalName,
+        district: candidate.district,
+        province: candidate.province,
+        candidate_location: candidate.latitude === null ||
+            candidate.longitude === null
+          ? null
+          : `POINT(${candidate.longitude} ${candidate.latitude})`,
+        coordinate_precision: candidate.coordinatePrecision,
+        coordinate_evidence: candidate.coordinateEvidence,
+        target_species: candidate.targetSpecies,
+        access_evidence: candidate.accessEvidence,
+        confidence_score: candidate.confidenceScore,
+      }).select("id").single();
+      if (insertedCandidate.error) throw new Error("CANDIDATE_WRITE_FAILED");
+      const insertedSources = await db.from("discovery_sources").insert(
+        candidate.sources.map((source) => ({
+          candidate_id: insertedCandidate.data.id,
+          url: source.url,
+          title: source.title,
+          source_date: source.sourceDate && /^\d{4}-\d{2}-\d{2}$/.test(
+              source.sourceDate,
+            )
+            ? source.sourceDate
+            : null,
+          supports_coordinate: source.supportsCoordinate,
+          supports_fishing: source.supportsFishing,
+        })),
+      );
+      if (insertedSources.error) {
+        throw new Error("CANDIDATE_SOURCE_WRITE_FAILED");
+      }
+    }
+    const searchCalls = Math.max(
+      1,
+      result.output?.filter((item) => item.type === "web_search_call").length ??
+        0,
+    );
+    const inputTokens = result.usage?.input_tokens ?? 0;
+    const outputTokens = result.usage?.output_tokens ?? 0;
+    const estimatedCost = searchCalls * Number(
+          Deno.env.get("DISCOVERY_WEB_SEARCH_USD_PER_CALL") ?? 0.01,
+        ) +
+      inputTokens / 1_000_000 * Number(
+          Deno.env.get("DISCOVERY_INPUT_USD_PER_MILLION") ?? 0.25,
+        ) +
+      outputTokens / 1_000_000 * Number(
+          Deno.env.get("DISCOVERY_OUTPUT_USD_PER_MILLION") ?? 2,
+        );
     await db.from("discovery_runs").update({
       status: "COMPLETED",
       completed_at: new Date().toISOString(),
-      search_calls: 1,
-      input_tokens: result.usage?.input_tokens ?? 0,
-      output_tokens: result.usage?.output_tokens ?? 0,
+      search_calls: searchCalls,
+      input_tokens: inputTokens,
+      output_tokens: outputTokens,
+      estimated_cost_usd: estimatedCost,
     }).eq("id", run.data.id);
     return response({
       source: "live",
@@ -500,6 +602,131 @@ async function syncMutation(request: Request) {
       condition_snapshot_id: snapshotId,
       updated_at: new Date().toISOString(),
     })).error;
+  } else if (item.entityType === "USER_SPOT") {
+    if (item.operation === "DELETE") {
+      mutationError = (await db.from("spots").delete().eq("id", item.entityId)
+        .eq("owner_id", userId)).error;
+    } else {
+      const userSpot = z.object({
+        id: z.string().uuid(),
+        canonicalName: z.string().min(2).max(160),
+        coordinates: z.object({
+          latitude: z.number().min(-90).max(90),
+          longitude: z.number().min(-180).max(180),
+        }),
+        publicationLevel: z.enum(["PUBLIC", "PRIVATE", "APPROXIMATE"]),
+        targetSpecies: z.array(z.string().min(2).max(40)).max(20),
+        coastlineType: z.string().min(2).max(40),
+        accessType: z.string().min(2).max(40),
+        terrain: z.string().max(1000),
+        knownHazards: z.array(z.string().max(300)).max(20),
+        accessWarnings: z.array(z.string().max(300)).max(20),
+      }).parse(item.payload.spot);
+      const isPrivate = userSpot.publicationLevel === "PRIVATE";
+      const isApproximate = userSpot.publicationLevel === "APPROXIMATE";
+      const displayLatitude = isApproximate
+        ? Math.round(userSpot.coordinates.latitude * 100) / 100
+        : userSpot.coordinates.latitude;
+      const displayLongitude = isApproximate
+        ? Math.round(userSpot.coordinates.longitude * 100) / 100
+        : userSpot.coordinates.longitude;
+      const publicLocation = isPrivate
+        ? null
+        : `POINT(${displayLongitude} ${displayLatitude})`;
+      mutationError = (await db.from("spots").upsert({
+        id: userSpot.id,
+        owner_id: userId,
+        canonical_name: userSpot.canonicalName,
+        location: publicLocation,
+        coordinate_precision: isPrivate
+          ? "UNKNOWN"
+          : isApproximate
+          ? "APPROXIMATE"
+          : "EXACT",
+        uncertainty_radius_m: isApproximate ? 1500 : null,
+        province: "Bilinmiyor",
+        district: "Bilinmiyor",
+        country: "TR",
+        coastline_type: userSpot.coastlineType,
+        access_type: userSpot.accessType,
+        beginner_suitability: "UNKNOWN",
+        terrain: userSpot.terrain,
+        known_hazards: userSpot.knownHazards,
+        access_warnings: userSpot.accessWarnings,
+        prohibited_status: "UNKNOWN",
+        techniques: [],
+        recommended_gear_tags: [],
+        source_type: "COMMUNITY",
+        verification_status: "COMMUNITY",
+        confidence_score: 0.35,
+        publication_level: userSpot.publicationLevel,
+        updated_at: new Date().toISOString(),
+      })).error;
+      if (!mutationError) {
+        if (isPrivate || isApproximate) {
+          mutationError = (await db.from("private_spot_locations").upsert({
+            spot_id: userSpot.id,
+            owner_id: userId,
+            exact_location:
+              `POINT(${userSpot.coordinates.longitude} ${userSpot.coordinates.latitude})`,
+          })).error;
+        } else {
+          mutationError = (await db.from("private_spot_locations").delete().eq(
+            "spot_id",
+            userSpot.id,
+          ).eq("owner_id", userId)).error;
+        }
+      }
+      if (!mutationError) {
+        mutationError = (await db.from("spot_species").delete().eq(
+          "spot_id",
+          userSpot.id,
+        )).error;
+      }
+      if (!mutationError && userSpot.targetSpecies.length > 0) {
+        mutationError = (await db.from("spot_species").insert(
+          userSpot.targetSpecies.map((speciesId) => ({
+            spot_id: userSpot.id,
+            species_id: speciesId,
+            evidence_level: 0.35,
+          })),
+        )).error;
+      }
+    }
+  } else if (item.entityType === "FEEDBACK") {
+    const feedback = z.object({
+      id: z.string().uuid(),
+      spotId: z.string().uuid(),
+      feedbackType: z.enum([
+        "LOCATION_CORRECT",
+        "FISHABLE",
+        "ACCESS_CHANGED",
+        "PROHIBITED",
+        "DANGEROUS",
+        "SPECIES_WRONG",
+      ]),
+      note: z.string().max(1000).optional(),
+    }).parse(item.payload);
+    const windowStart = new Date(Date.now() - 60 * 60_000).toISOString();
+    const recentFeedback = await db.from("spot_feedback").select("id").eq(
+      "owner_id",
+      userId,
+    ).gte("created_at", windowStart).limit(5);
+    if (recentFeedback.error) mutationError = recentFeedback.error;
+    else if ((recentFeedback.data?.length ?? 0) >= 5) {
+      return response({
+        code: "FEEDBACK_RATE_LIMITED",
+        retryAfterSeconds: 3600,
+      }, 429);
+    } else {
+      mutationError = (await db.from("spot_feedback").insert({
+        id: feedback.id,
+        owner_id: userId,
+        spot_id: feedback.spotId,
+        feedback_type: feedback.feedbackType,
+        note: feedback.note ?? null,
+      })).error;
+    }
   } else {
     return response({ code: "SYNC_ENTITY_NOT_IMPLEMENTED" }, 422);
   }

@@ -1,4 +1,4 @@
-import type { ExperienceLevel, SpeciesId } from "@mera/types";
+import type { ExperienceLevel } from "@mera/types";
 import { router } from "expo-router";
 import { ScrollView, StyleSheet, Text, View } from "react-native";
 import { SPECIES } from "@mera/config";
@@ -18,4 +18,3 @@ export default function ProfileScreen() {
   </ScrollView></Screen>;
 }
 const styles = StyleSheet.create({ content: { padding: spacing.md, gap: spacing.md, paddingBottom: 80 }, wrap: { gap: spacing.sm }, value: { color: colors.ink, fontSize: 18, fontWeight: "900" }, subtle: { color: colors.muted, lineHeight: 20 } });
-

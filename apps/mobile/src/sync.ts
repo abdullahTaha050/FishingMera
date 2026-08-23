@@ -27,12 +27,15 @@ export async function runSync(db: Database): Promise<{ sent: number; pending: nu
         if (result.ok) {
           await db.runAsync("DELETE FROM sync_queue WHERE id=?", item.id);
           if (item.entityType === "CATCH_REPORT") await db.runAsync("UPDATE catch_reports SET sync_status='SYNCED',updated_at=? WHERE id=?", new Date().toISOString(), item.entityId);
+          if (item.entityType === "USER_SPOT") await db.runAsync("UPDATE user_spots SET sync_status='SYNCED',updated_at=? WHERE id=?", new Date().toISOString(), item.entityId);
           sent += 1;
         } else if (result.status === 401 || result.status === 403 || result.status === 422) {
           await db.runAsync("UPDATE sync_queue SET state='BLOCKED',last_error=? WHERE id=?", `HTTP_${result.status}`, item.id);
         } else if (isRetryableStatus(result.status)) {
           const next = new Date(Date.now() + retryDelayMs(item.attempts)).toISOString();
           await db.runAsync("UPDATE sync_queue SET state='PENDING',attempts=attempts+1,next_attempt_at=?,last_error=? WHERE id=?", next, `HTTP_${result.status}`, item.id);
+        } else {
+          await db.runAsync("UPDATE sync_queue SET state='BLOCKED',last_error=? WHERE id=?", `HTTP_${result.status}`, item.id);
         }
       } catch (error) {
         const next = new Date(Date.now() + retryDelayMs(item.attempts)).toISOString();

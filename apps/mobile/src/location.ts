@@ -1,7 +1,7 @@
 import type { Coordinates } from "@mera/types";
 import * as Location from "expo-location";
 import { Magnetometer } from "expo-sensors";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 export const HENDEK_DEMO_LOCATION: Coordinates = { latitude: 40.799, longitude: 30.748 };
 
@@ -11,7 +11,7 @@ export function useCurrentLocation() {
   const [permission, setPermission] = useState<Location.PermissionStatus | null>(null);
   const [loading, setLoading] = useState(false);
 
-  async function request() {
+  const request = useCallback(async () => {
     setLoading(true);
     try {
       const result = await Location.requestForegroundPermissionsAsync();
@@ -21,7 +21,7 @@ export function useCurrentLocation() {
       setCoordinates({ latitude: position.coords.latitude, longitude: position.coords.longitude });
       setAccuracy(position.coords.accuracy ?? null);
     } finally { setLoading(false); }
-  }
+  }, []);
   return { coordinates, accuracy, permission, loading, request };
 }
 
@@ -51,4 +51,3 @@ export function useHeading() {
   }, []);
   return { heading, accuracy, needsCalibration: accuracy !== null && accuracy < 2 };
 }
-

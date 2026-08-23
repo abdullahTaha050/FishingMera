@@ -7,7 +7,7 @@ import { saveGear, setSetting } from "@/db";
 import { useAppState } from "@/store";
 import { colors, spacing } from "@/theme";
 
-const experiences: Array<[ExperienceLevel, string]> = [["FIRST_TIME", "İlk defa"], ["BEGINNER", "Acemi"], ["INTERMEDIATE", "Orta"], ["EXPERIENCED", "Deneyimli"]];
+const experiences: [ExperienceLevel, string][] = [["FIRST_TIME", "İlk defa"], ["BEGINNER", "Acemi"], ["INTERMEDIATE", "Orta"], ["EXPERIENCED", "Deneyimli"]];
 
 export default function OnboardingScreen() {
   const state = useAppState();
@@ -28,4 +28,3 @@ export default function OnboardingScreen() {
 
 function Field({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }) { return <View style={{ flex: 1, gap: 6 }}><Text style={styles.fieldLabel}>{label}</Text><TextInput style={styles.input} value={value} onChangeText={onChange} keyboardType="numeric" placeholder="Bilmiyorum" placeholderTextColor={colors.muted} /></View>; }
 const styles = StyleSheet.create({ content: { padding: spacing.md, gap: spacing.md }, subtle: { color: colors.muted, fontSize: 15 }, wrap: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm }, chip: { minHeight: 46, paddingHorizontal: 15, alignItems: "center", justifyContent: "center", backgroundColor: "#ECEBE3", borderRadius: 12 }, chipActive: { backgroundColor: colors.moss }, chipText: { color: colors.ink, fontWeight: "700" }, chipTextActive: { color: colors.white }, input: { minHeight: 48, borderWidth: 1, borderColor: colors.border, borderRadius: 12, paddingHorizontal: 12, backgroundColor: colors.white, color: colors.ink, fontSize: 16 }, row: { flexDirection: "row", gap: spacing.sm }, fieldLabel: { color: colors.muted, fontWeight: "700", fontSize: 12 } });
-

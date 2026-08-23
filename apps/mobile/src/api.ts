@@ -1,8 +1,44 @@
 import type { ConditionSnapshot, Spot } from "@mera/types";
+import { guestAccessToken } from "./auth";
 
 function apiBase(): string | null {
   const base = process.env.EXPO_PUBLIC_SUPABASE_URL;
   return base ? `${base}/functions/v1/api` : null;
+}
+
+export interface DiscoveryCandidate {
+  canonicalName: string;
+  province: string | null;
+  district: string | null;
+  latitude: number | null;
+  longitude: number | null;
+  coordinatePrecision: "EXACT" | "APPROXIMATE" | "UNKNOWN";
+  coordinateEvidence: string | null;
+  accessEvidence: string | null;
+  confidenceScore: number;
+  sources: { url: string; title: string; supportsCoordinate: boolean; supportsFishing: boolean }[];
+}
+
+export async function discoverMoreSpots(input: { latitude: number; longitude: number; radiusKm: number; targetSpecies: string }): Promise<{ candidates: DiscoveryCandidate[]; cached: boolean }> {
+  const base = apiBase();
+  const anonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
+  if (!base || !anonKey) throw new Error("BACKEND_NOT_CONFIGURED");
+  const token = await guestAccessToken();
+  if (!token) throw new Error("AUTH_UNAVAILABLE");
+  const result = await fetch(`${base}/discover`, {
+    method: "POST",
+    headers: { apikey: anonKey, authorization: `Bearer ${token}`, "content-type": "application/json" },
+    body: JSON.stringify({
+      regionKey: `tr:${input.latitude.toFixed(1)}:${input.longitude.toFixed(1)}:${input.radiusKm}:${input.targetSpecies}`,
+      regionDescription: `Merkez koordinatı ${input.latitude.toFixed(3)}, ${input.longitude.toFixed(3)} olan Türkiye kıyı bölgesi`,
+      radiusKm: Math.max(25, Math.min(200, Math.round(input.radiusKm))),
+      targetSpecies: input.targetSpecies,
+      force: false
+    })
+  });
+  const body = await result.json() as { source?: string; candidates?: DiscoveryCandidate[]; code?: string };
+  if (!result.ok) throw new Error(body.code ?? `DISCOVERY_HTTP_${result.status}`);
+  return { candidates: body.candidates ?? [], cached: body.source === "cached" };
 }
 
 export async function fetchConditions(spot: Spot): Promise<ConditionSnapshot | null> {
@@ -30,4 +66,3 @@ export async function fetchConditions(spot: Spot): Promise<ConditionSnapshot | n
     };
   } finally { clearTimeout(timeout); }
 }
-
