@@ -22,8 +22,8 @@
   },
   "devDependencies": {
     "@types/node": "^24.10.1",
+    "pgsql-parser": "^18.2.6",
     "typescript": "~6.0.3",
     "vitest": "^4.1.11"
   }
 }
-
