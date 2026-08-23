@@ -1,0 +1,29 @@
+{
+  "name": "mera",
+  "version": "0.1.0",
+  "private": true,
+  "packageManager": "npm@12.0.2",
+  "engines": {
+    "node": ">=24.3.0"
+  },
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "build": "npm run build --workspaces --if-present",
+    "lint": "npm run lint --workspaces --if-present",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present",
+    "test:coverage": "npm run test:coverage --workspaces --if-present",
+    "mobile": "npm --workspace @mera/mobile run start",
+    "mobile:android": "npm --workspace @mera/mobile run android",
+    "mobile:ios": "npm --workspace @mera/mobile run ios"
+  },
+  "devDependencies": {
+    "@types/node": "^24.10.1",
+    "typescript": "~6.0.3",
+    "vitest": "^4.1.11"
+  }
+}
+
