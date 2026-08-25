@@ -47,6 +47,20 @@ export const fallbackMapStyle = {
   layers: [{ id: "background", type: "background" as const, paint: { "background-color": "#B9DCE3" } }]
 };
 
+export const onlineMapStyle = {
+  version: 8 as const,
+  name: "Mera online basemap",
+  sources: {
+    "osm-raster": {
+      type: "raster" as const,
+      tiles: ["https://tile.openstreetmap.org/{z}/{x}/{y}.png"],
+      tileSize: 256,
+      attribution: "© OpenStreetMap contributors"
+    }
+  },
+  layers: [{ id: "osm-raster", type: "raster" as const, source: "osm-raster", minzoom: 0, maxzoom: 19 }]
+};
+
 export function spotsGeoJson(spots: Spot[]) {
   return {
     type: "FeatureCollection" as const,

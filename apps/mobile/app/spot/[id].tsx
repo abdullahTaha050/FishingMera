@@ -11,6 +11,7 @@ import { conditionsMap, getSpot, getSpotNote, listCatchReportsForSpot, saveFeedb
 import { useCurrentLocation } from "@/location";
 import { downloadOfflineRegion, fallbackMapStyle, SAKARYA_NORTH_BOUNDS } from "@/map";
 import { BundledBasemapLayers } from "@/mapLayers";
+import { MeraBottomNavigation, type MeraTabKey } from "@/mera-tab-bar";
 import { accessTypeText, beginnerSuitabilityText, catchResultTr, coastlineTypeText, safetyReasonTr, syncStatusTr } from "@/labels";
 import { useAppState } from "@/store";
 import { colors, spacing } from "@/theme";
@@ -110,11 +111,13 @@ export default function SpotDetailScreen() {
       <AdvancedSections spot={spot} reports={reports} personalNote={personalNote} savedPersonalNote={savedPersonalNote} setPersonalNote={setPersonalNote} persistPersonalNote={persistPersonalNote} regulation={regulation} regulationAgeDays={regulationAgeDays} feedback={feedback} />
     </ScrollView>
     <View style={styles.stickyBar}><View style={styles.stickyPrimary}><Button title="Yol tarifi" onPress={openDirections} /></View><Pressable accessibilityRole="button" accessibilityLabel="Pusula" onPress={() => router.push({ pathname: "/compass", params: { spotId: spot.id } })} style={styles.stickySecondary}><Ionicons name="compass-outline" size={20} color={colors.ink} /><Text style={styles.stickySecondaryText}>Pusula</Text></Pressable><Pressable accessibilityRole="button" accessibilityLabel={favorite ? "Kaydı kaldır" : "Kaydet"} onPress={() => state.toggleFavorite(spot.id)} style={styles.stickySecondary}><Ionicons name={favorite ? "bookmark" : "bookmark-outline"} size={20} color={colors.ink} /><Text style={styles.stickySecondaryText}>{favorite ? "Kayıtlı" : "Kaydet"}</Text></Pressable></View>
+    <MeraBottomNavigation includeSafeArea={false} onNavigate={(tab) => openMainTab(tab)} />
     <Modal visible={verificationVisible} transparent animationType="slide" onRequestClose={() => setVerificationVisible(false)}><Pressable style={styles.sheetBackdrop} onPress={() => setVerificationVisible(false)}><Pressable style={styles.sheet} onPress={(event) => event.stopPropagation()}><View style={styles.sheetHandle} /><View style={styles.sheetHeader}><Text style={styles.sheetTitle}>{verificationLabel}</Text><Pressable accessibilityRole="button" accessibilityLabel="Kapat" onPress={() => setVerificationVisible(false)}><Ionicons name="close" size={24} color={colors.ink} /></Pressable></View><View style={styles.sheetFacts}><Text style={styles.sheetFact}>3 kaynak</Text><Text style={styles.sheetFact}>18 Ağu 2026</Text></View><Text style={styles.sheetNote}>Konum teyididir; balık veya güvenlik garantisi değildir.</Text><Text style={styles.sheetLink}>Kaynakları gör</Text></Pressable></Pressable></Modal>
   </Screen>;
 }
 
 function SectionTitle({ children }: { children: string }) { return <Text style={styles.sectionTitle}>{children}</Text>; }
+function openMainTab(tab: MeraTabKey) { const paths: Record<MeraTabKey, "/(tabs)" | "/(tabs)/map" | "/(tabs)/saved" | "/(tabs)/catches" | "/(tabs)/profile"> = { index: "/(tabs)", map: "/(tabs)/map", saved: "/(tabs)/saved", catches: "/(tabs)/catches", profile: "/(tabs)/profile" }; router.replace(paths[tab]); }
 function Fact({ label, value, icon }: { label: string; value: string; icon: keyof typeof Ionicons.glyphMap }) { return <View style={styles.fact}><Ionicons name={icon} size={20} color={colors.water} /><View><Text style={styles.factLabel}>{label}</Text><Text style={styles.factValue} numberOfLines={1}>{value}</Text></View></View>; }
 function Metric({ label, value, tone, icon }: { label: string; value: string; tone: "sea" | "wind"; icon: keyof typeof Ionicons.glyphMap }) { return <View style={[styles.metric, tone === "sea" ? styles.seaSurface : styles.windSurface]}><Ionicons name={icon} size={20} color={tone === "sea" ? colors.water : colors.muted} /><Text style={styles.metricLabel}>{label}</Text><Text style={styles.metricValue}>{value}</Text></View>; }
 function Chip({ label, tone }: { label: string; tone: "positive" | "warning" }) { return <View style={[styles.chip, tone === "positive" ? styles.positiveChip : styles.warningChip]}><Text style={styles.chipText}>{label}</Text></View>; }
