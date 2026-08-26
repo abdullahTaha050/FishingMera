@@ -6,7 +6,7 @@ import { Alert, Linking, ScrollView, StyleSheet, Text, View } from "react-native
 import { discoverMoreSpots, fetchConditions, type DiscoveryCandidate } from "@/api";
 import { Button, Card, Label, Loading, Screen } from "@/components";
 import { cacheCondition, conditionsMap, recentReportsMap, trackEvent } from "@/db";
-import { HENDEK_DEMO_LOCATION, useCurrentLocation } from "@/location";
+import { useCurrentLocation } from "@/location";
 import { downloadOfflineRegion, SAKARYA_NORTH_BOUNDS } from "@/map";
 import { beginnerSuitabilityText, safetyReasonText, verificationText } from "@/labels";
 import { useAppState } from "@/store";
@@ -45,12 +45,13 @@ export default function RecommendationsScreen() {
   useEffect(() => { if (state.db) conditionsMap(state.db).then(setConditionBySpot); }, [state.db]);
   useEffect(() => { if (state.db) recentReportsMap(state.db, state.targetSpecies).then(setReportsBySpot); }, [state.db, state.targetSpecies]);
   useEffect(() => { if (state.db) void trackEvent(state.db, "recommendation_requested", { radiusKm: state.maxDistanceKm, targetSpecies: state.targetSpecies }); }, [state.db, state.maxDistanceKm, state.targetSpecies]);
-  const coordinates = location.coordinates ?? HENDEK_DEMO_LOCATION;
-  const results = useMemo(() => state.fishingType === "SHORE" ? rankRecommendations(state.spots, { userCoordinates: coordinates, experience: state.experience, targetSpecies: state.targetSpecies, gear: state.gear ?? undefined, maxDistanceKm: state.maxDistanceKm, now: new Date().toISOString() }, conditionBySpot, reportsBySpot) : [], [state.spots, coordinates, state.experience, state.fishingType, state.targetSpecies, state.gear, state.maxDistanceKm, conditionBySpot, reportsBySpot]);
+  const coordinates = location.coordinates;
+  const results = useMemo(() => coordinates && state.fishingType === "SHORE" ? rankRecommendations(state.spots, { userCoordinates: coordinates, experience: state.experience, targetSpecies: state.targetSpecies, gear: state.gear ?? undefined, maxDistanceKm: state.maxDistanceKm, now: new Date().toISOString() }, conditionBySpot, reportsBySpot) : [], [state.spots, coordinates, state.experience, state.fishingType, state.targetSpecies, state.gear, state.maxDistanceKm, conditionBySpot, reportsBySpot]);
 
   useEffect(() => {
+    if (!coordinates || !state.db || !state.isConnected || results.length === 0) return;
     const key = `${state.targetSpecies}:${state.maxDistanceKm}:${coordinates.latitude.toFixed(3)}:${coordinates.longitude.toFixed(3)}`;
-    if (!state.db || !state.isConnected || fetchedKey.current === key || results.length === 0) return;
+    if (fetchedKey.current === key) return;
     fetchedKey.current = key; setRefreshing(true);
     Promise.all(results.filter((item) => item.safety.allowed).slice(0, 5).map(async (item) => {
       const condition = await fetchConditions(item.spot);
@@ -59,8 +60,9 @@ export default function RecommendationsScreen() {
   }, [state.db, state.isConnected, state.targetSpecies, state.maxDistanceKm, coordinates, results]);
 
   useEffect(() => {
+    if (!coordinates || state.fishingType !== "SHORE" || !state.isConnected || results.length >= 3) return;
     const key = `${state.targetSpecies}:${state.maxDistanceKm}:${coordinates.latitude.toFixed(2)}:${coordinates.longitude.toFixed(2)}`;
-    if (state.fishingType !== "SHORE" || !state.isConnected || results.length >= 3 || autoDiscoveryKey.current === key) return;
+    if (autoDiscoveryKey.current === key) return;
     autoDiscoveryKey.current = key;
     setDiscovering(true);
     void discoverMoreSpots({ latitude: coordinates.latitude, longitude: coordinates.longitude, radiusKm: state.maxDistanceKm, targetSpecies: state.targetSpecies })
@@ -73,9 +75,11 @@ export default function RecommendationsScreen() {
   async function discover() {
     if (state.fishingType !== "SHORE") return Alert.alert("Kıyı avı seçilmeli", "Bu MVP tekne veya tatlı su merası üretmez. Profilde av tipini Kıyı olarak değiştir.");
     if (!state.isConnected) return Alert.alert("İnternet gerekli", "Seed meralar ve mevcut öneriler çevrimdışı çalışmaya devam eder.");
+    const currentCoordinates = coordinates ?? await location.request();
+    if (!currentCoordinates) return Alert.alert("Konum gerekli", "Yakınındaki meraları aramak için cihaz konumuna izin ver.");
     setDiscovering(true);
     try {
-      const result = await discoverMoreSpots({ latitude: coordinates.latitude, longitude: coordinates.longitude, radiusKm: state.maxDistanceKm, targetSpecies: state.targetSpecies });
+      const result = await discoverMoreSpots({ latitude: currentCoordinates.latitude, longitude: currentCoordinates.longitude, radiusKm: state.maxDistanceKm, targetSpecies: state.targetSpecies });
       setDiscovered(result.candidates);
       if (result.candidates.length === 0) Alert.alert("Yeni kanıtlı aday bulunamadı", "Mevcut seed verisi kullanılmaya devam ediyor.");
     } catch (error) {
@@ -91,10 +95,11 @@ export default function RecommendationsScreen() {
   }
   return <Screen><ScrollView contentContainerStyle={styles.content}>
     {state.fishingType !== "SHORE" && <Card><Text style={styles.risk}>Bu MVP yalnızca kıyı avı önerir.</Text><Text style={styles.subtle}>Tekne veya tatlı su seçiliyken kıyı meralarını yanlış bağlamda sıralamıyoruz.</Text><Button title="Profilden Kıyı seç" variant="secondary" onPress={() => router.push("/(tabs)/profile")} /></Card>}
-    <Card><Label>Konum kaynağı</Label><Text style={styles.value}>{location.coordinates ? "Cihaz GPS" : "Hendek demo konumu"}</Text><Text style={styles.subtle}>{location.coordinates ? `GPS doğruluğu: ±${Math.round(location.accuracy ?? 0)} m` : "İzin verince gerçek konumla yeniden hesaplanır."}</Text><Button title={location.loading ? "Konum alınıyor…" : "Konumumu kullan"} variant="secondary" disabled={location.loading} onPress={location.request} /></Card>
+    <Card><Label>Konum kaynağı</Label><Text style={styles.value}>{location.coordinates ? (location.label ?? "Cihaz konumu") : "Konum bekleniyor"}</Text><Text style={styles.subtle}>{location.coordinates ? `GPS doğruluğu: ±${Math.round(location.accuracy ?? 0)} m` : "İzin verince gerçek konumla yeniden hesaplanır."}</Text><Button title={location.loading ? "Konum alınıyor…" : "Konumumu kullan"} variant="secondary" disabled={location.loading} onPress={location.request} /></Card>
     {refreshing && <Text style={styles.refresh}>İlk beş sonuç için hava/deniz cache’i güncelleniyor…</Text>}
     {results.map((result) => <ResultCard key={result.spot.id} result={result} condition={conditionBySpot.get(result.spot.id)} onOpen={() => router.push({ pathname: "/spot/[id]", params: { id: result.spot.id } })} onMap={() => router.push({ pathname: "/(tabs)/map", params: { spotId: result.spot.id } })} onOffline={offline} />)}
-    {state.fishingType === "SHORE" && results.length === 0 && <Card><Text style={styles.value}>Seçilen yarıçapta kayıt yok.</Text><Text style={styles.subtle}>İnternet varsa “daha fazla mera ara” sunucu keşfini kullanabilir; mevcut başlangıç verisi çalışmaya devam eder.</Text></Card>}
+    {state.fishingType === "SHORE" && !coordinates && <Card><Text style={styles.value}>Konumunu kullanarak öneri al.</Text><Text style={styles.subtle}>Mesafe ve sıralama, yalnız gerçek veya son bilinen cihaz konumuyla hesaplanır.</Text></Card>}
+    {state.fishingType === "SHORE" && coordinates && results.length === 0 && <Card><Text style={styles.value}>Seçilen yarıçapta kayıt yok.</Text><Text style={styles.subtle}>İnternet varsa “daha fazla mera ara” sunucu keşfini kullanabilir; mevcut başlangıç verisi çalışmaya devam eder.</Text></Card>}
     {state.fishingType === "SHORE" && <Button title={discovering ? "İnternet kaynakları araştırılıyor…" : "Daha fazla mera ara"} variant="secondary" disabled={discovering || !state.isConnected} onPress={discover} />}
     {discovered.length > 0 && <View style={{ gap: spacing.sm }}><Label>Keşif adayları · öneri listesine henüz eklenmedi</Label>{discovered.map((candidate, index) => <Card key={`${candidate.canonicalName}-${index}`}><Text style={styles.name}>{candidate.canonicalName}</Text><Text style={styles.subtle}>{[candidate.district, candidate.province].filter(Boolean).join(", ") || "Bölge bilinmiyor"} · {candidate.coordinatePrecision === "UNKNOWN" ? "Koordinat kanıtı yok" : candidate.coordinatePrecision === "APPROXIMATE" ? "Yaklaşık koordinat" : "Kaynaklı koordinat"}</Text><Text style={styles.risk}>Doğrulanmamış internet adayı · güven skoru %{Math.round(candidate.confidenceScore * 100)}</Text>{candidate.sources.slice(0, 3).map((source) => <Text key={source.url} style={styles.link} onPress={() => Linking.openURL(source.url)}>• {source.title} ↗</Text>)}</Card>)}</View>}
   </ScrollView></Screen>;

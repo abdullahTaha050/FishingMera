@@ -9,6 +9,5 @@ export function stalenessLabelTr(timestamp?: string, now = new Date()): string {
   if (minutes < 60) return `${minutes} dakika önce güncellendi`;
   const hours = Math.floor(minutes / 60);
   if (hours < 24) return `${hours} saat önce güncellendi`;
-  return `${Math.floor(hours / 24)} gün önce güncellendi — eski veri`;
+  return `${Math.floor(hours / 24)} gün önce güncellendi`;
 }
-

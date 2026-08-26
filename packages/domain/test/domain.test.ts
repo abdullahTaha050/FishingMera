@@ -103,8 +103,8 @@ describe("offline sync and staleness", () => {
     expect(isRetryableStatus(429)).toBe(true);
     expect(isRetryableStatus(400)).toBe(false);
   });
-  it("labels stale data explicitly", () => {
+  it("reports cache age without alarm copy", () => {
     expect(stalenessLabelTr("2026-08-23T03:05:00Z", new Date("2026-08-23T06:05:00Z"))).toBe("3 saat önce güncellendi");
-    expect(stalenessLabelTr("2026-08-20T06:05:00Z", new Date("2026-08-23T06:05:00Z"))).toContain("eski veri");
+    expect(stalenessLabelTr("2026-08-20T06:05:00Z", new Date("2026-08-23T06:05:00Z"))).toBe("3 gün önce güncellendi");
   });
 });

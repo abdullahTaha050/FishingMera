@@ -1,8 +1,9 @@
-import { Appearance, DynamicColorIOS, Platform, type ColorValue } from "react-native";
+import type { ColorValue } from "react-native";
 
-function adaptive(light: string, dark: string): ColorValue {
-  if (Platform.OS === "ios") return DynamicColorIOS({ light, dark });
-  if (Platform.OS === "android") return Appearance.getColorScheme() === "dark" ? dark : light;
+function adaptive(light: string, _dark: string): ColorValue {
+  // Koyu tema paleti ileride yeniden etkinleştirilecek.
+  // if (Platform.OS === "ios") return DynamicColorIOS({ light, dark });
+  // if (Platform.OS === "android") return Appearance.getColorScheme() === "dark" ? dark : light;
   return light;
 }
 

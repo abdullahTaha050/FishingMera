@@ -1,0 +1,7 @@
+interface:
+  display_name: "Mera Mobile Design"
+  short_description: "Mera için ferah, native ve UI/UX odaklı mobil tasarım kuralları"
+  default_prompt: "Bu Mera UI görevinde $mera-mobile-design skill'ini uygula; ilgili referans görselleri incele, sadece istenen ekranı değiştir ve iş bitince dur."
+
+policy:
+  allow_implicit_invocation: false

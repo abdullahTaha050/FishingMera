@@ -74,6 +74,24 @@ export async function listFavorites(db: Database): Promise<string[]> {
   return (await db.getAllAsync<{ spot_id: string }>("SELECT spot_id FROM favorites ORDER BY updated_at DESC")).map((row) => row.spot_id);
 }
 
+export type OfflineRegion = {
+  id: string;
+  name: string;
+  state: "DOWNLOADING" | "COMPLETE" | "FAILED";
+  progress: number;
+  updatedAt: string;
+};
+
+export async function listOfflineRegions(db: Database): Promise<OfflineRegion[]> {
+  const rows = await db.getAllAsync<{ id: string; name: string; state: string; progress: number; updated_at: string }>(
+    "SELECT id,name,state,progress,updated_at FROM offline_regions ORDER BY updated_at DESC"
+  );
+  return rows.flatMap((row) => {
+    if (row.state !== "DOWNLOADING" && row.state !== "COMPLETE" && row.state !== "FAILED") return [];
+    return [{ id: row.id, name: row.name, state: row.state, progress: row.progress, updatedAt: row.updated_at }];
+  });
+}
+
 export async function setFavorite(db: Database, spotId: string, favorite: boolean): Promise<void> {
   const now = new Date().toISOString();
   await db.withTransactionAsync(async () => {

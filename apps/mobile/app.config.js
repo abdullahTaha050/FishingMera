@@ -10,7 +10,17 @@ const config = {
   icon: "./assets/icon.png",
   primaryColor: "#375E4C",
   orientation: "portrait",
-  userInterfaceStyle: "automatic",
+  userInterfaceStyle: "light",
+  backgroundColor: "#F4F2EA",
+  androidStatusBar: {
+    barStyle: "dark-content",
+    backgroundColor: "#F4F2EA"
+  },
+  androidNavigationBar: {
+    backgroundColor: "#F4F2EA",
+    barStyle: "dark-content",
+    enforceContrast: false
+  },
   ios: {
     bundleIdentifier: "app.mera.mobile",
     buildNumber: "1",

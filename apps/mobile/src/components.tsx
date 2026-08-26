@@ -17,8 +17,8 @@ export function Title({ children }: React.PropsWithChildren) { return <Text styl
 export function Label({ children }: React.PropsWithChildren) { return <Text style={styles.label}>{children}</Text>; }
 
 export function OfflineBanner({ connected, lastSyncAt }: { connected: boolean; lastSyncAt: string | null }) {
-  if (connected && !lastSyncAt) return null;
-  return <View style={[styles.banner, !connected && styles.offlineBanner]}><Text style={[styles.bannerText, !connected && styles.offlineBannerText]}>{connected ? `Son senkronizasyon: ${stalenessLabelTr(lastSyncAt ?? undefined)}` : `Çevrimdışı · ${lastSyncAt ? stalenessLabelTr(lastSyncAt) : "Seed verisi kullanılıyor"}`}</Text></View>;
+  if (connected) return null;
+  return <View accessibilityLiveRegion="polite" style={styles.offlineStatus}><Text style={styles.offlineStatusText}>{lastSyncAt ? `Çevrimdışı • ${stalenessLabelTr(lastSyncAt)}` : "Çevrimdışı • Yerel veriler kullanılıyor"}</Text></View>;
 }
 
 export function Loading() { return <View style={styles.loading}><ActivityIndicator size="large" color={colors.primary} /><Text style={styles.muted}>Yerel veriler hazırlanıyor…</Text></View>; }
@@ -35,8 +35,6 @@ const styles = StyleSheet.create({
   card: { backgroundColor: colors.surface, borderRadius: 18, borderWidth: 1, borderColor: colors.border, padding: spacing.md, gap: spacing.sm },
   title: { color: colors.ink, fontSize: 28, lineHeight: 34, fontWeight: "900" },
   label: { color: colors.muted, fontSize: 13, fontWeight: "700", textTransform: "uppercase", letterSpacing: 0.7 },
-  banner: { backgroundColor: colors.banner, paddingHorizontal: spacing.md, paddingVertical: 8 },
-  offlineBanner: { backgroundColor: colors.offline },
-  offlineBannerText: { color: colors.white },
-  bannerText: { color: colors.ink, textAlign: "center", fontWeight: "700", fontSize: 13 },
+  offlineStatus: { alignSelf: "flex-start", paddingVertical: 5, paddingHorizontal: 9, borderRadius: 9, backgroundColor: colors.banner },
+  offlineStatusText: { color: colors.muted, fontWeight: "600", fontSize: 12 },
 });

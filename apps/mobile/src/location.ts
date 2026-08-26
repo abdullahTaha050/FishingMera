@@ -4,13 +4,35 @@ import * as Location from "expo-location";
 import { Magnetometer } from "expo-sensors";
 import { useCallback, useEffect, useRef, useState } from "react";
 
-export const HENDEK_DEMO_LOCATION: Coordinates = { latitude: 40.799, longitude: 30.748 };
-
 export function useCurrentLocation() {
   const [coordinates, setCoordinates] = useState<Coordinates | null>(null);
   const [accuracy, setAccuracy] = useState<number | null>(null);
   const [permission, setPermission] = useState<Location.PermissionStatus | null>(null);
   const [loading, setLoading] = useState(false);
+  const [label, setLabel] = useState<string | null>(null);
+
+  const updateLabel = useCallback(async (next: Coordinates) => {
+    try {
+      const [place] = await Location.reverseGeocodeAsync(next);
+      const nextLabel = [place?.district, place?.city, place?.subregion, place?.region]
+        .find((value): value is string => Boolean(value?.trim()));
+      setLabel(nextLabel ?? "Cihaz konumu");
+    } catch { setLabel("Cihaz konumu"); }
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+    void Location.getLastKnownPositionAsync({ maxAge: 15 * 60 * 1000, requiredAccuracy: 5_000 })
+      .then((position) => {
+        if (!active || !position) return;
+        const next = { latitude: position.coords.latitude, longitude: position.coords.longitude };
+        setCoordinates(next);
+        setAccuracy(position.coords.accuracy ?? null);
+        void updateLabel(next);
+      })
+      .catch(() => undefined);
+    return () => { active = false; };
+  }, [updateLabel]);
 
   const request = useCallback(async (): Promise<Coordinates | null> => {
     setLoading(true);
@@ -22,10 +44,11 @@ export function useCurrentLocation() {
       const next = { latitude: position.coords.latitude, longitude: position.coords.longitude };
       setCoordinates(next);
       setAccuracy(position.coords.accuracy ?? null);
+      void updateLabel(next);
       return next;
     } finally { setLoading(false); }
-  }, []);
-  return { coordinates, accuracy, permission, loading, request };
+  }, [updateLabel]);
+  return { coordinates, accuracy, permission, loading, label, request };
 }
 
 export function useHeading() {
